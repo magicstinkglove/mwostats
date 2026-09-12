@@ -8,46 +8,37 @@ You run it on your own computer. Nothing gets uploaded anywhere, and nobody but 
 your data.
 
 This guide assumes you've never written code before, never used a command line, and don't
-know what half these words mean. That's fine. Follow the steps **in order**, don't skip
-anything, and copy-paste every command exactly instead of typing it by hand.
+know what half these words mean. That's fine — you won't need a command line for this.
+Follow the steps **in order** and don't skip anything.
 
 ---
 
 ## Read this before you start
 
-- **It takes about 15 minutes the first time.** After that, starting the app again takes
-  about 10 seconds (just Step 5).
-- **Every gray box below is something you copy and paste** — never type it by hand, it's
-  too easy to mistype one character and have nothing work. To copy: click into the gray box,
-  select all the text in it, Ctrl+C. To paste into the black window: right-click inside it
-  (in most terminals **Ctrl+V also works**, but right-click always works).
-- **Only copy commands from this page.** If you copy a command from a chat app, a Word
-  document, or a text message instead, the quote marks or dashes can get silently swapped for
-  "smart" versions that look identical on screen but make the command fail. If something
-  mysteriously doesn't work, come back here and copy it fresh from this page.
-- **After every step below, there's a "✅ You'll know it worked when" line.** Check it before
-  moving to the next step. If your screen doesn't match it, stop — jump to
-  **[Troubleshooting](#troubleshooting)** at the bottom, find the message closest to what
-  you're seeing, and fix that before continuing. Don't skip ahead hoping it'll sort itself
-  out later — it won't.
-- **You cannot break your computer by doing this.** The absolute worst case is you delete the
-  folder and start over from Step 2.
+- **There are only four steps**, and only Step 1 involves anything resembling "computer
+  stuff." The rest is double-clicking things.
+- **No typing commands, no terminal.** A file called `start.bat` does everything for you —
+  installing what the app needs and launching it — when you double-click it.
+- **After every step, there's a "✅ You'll know it worked when" line.** Check it before moving
+  on. If your screen doesn't match it, jump to **[Troubleshooting](#troubleshooting)** at the
+  bottom and find the message closest to what you're seeing.
+- **You cannot break your computer by doing this.** Worst case, you delete the folder and
+  start over from Step 2.
 
 ---
 
 ## What you'll need
 
-- A Windows computer (these steps are for Windows; see the note at the very bottom if you're
-  on a Mac)
-- About 15 minutes, uninterrupted
-- Your MWO API token (Step 7 below tells you exactly how to get one — you don't need it yet)
+- A Windows computer (see the note at the very bottom if you're on a Mac)
+- About 10 minutes the first time; about 10 *seconds* every time after that
+- Your MWO API token (Step 4 below tells you exactly how to get one — you don't need it yet)
 
 ---
 
 ## Step 1 — Install Python
 
-This app is written in a language called Python. Your computer almost certainly doesn't have
-it yet, and that's normal — it's not something Windows comes with.
+This app needs something called Python to run. Your computer almost certainly doesn't have
+it yet — that's normal, it's not something Windows comes with.
 
 1. Go to **[python.org/downloads](https://www.python.org/downloads/)** and click the big
    yellow "Download Python" button.
@@ -62,8 +53,8 @@ it yet, and that's normal — it's not something Windows comes with.
    clicking anything else.
 5. Click **"Install Now"** and let it finish, then click **Close**.
 
-✅ **You'll know it worked when:** you can move on to Step 2. You'll actually *verify* Python
-installed correctly during Step 3's checkpoint — don't worry about testing it now.
+✅ **You'll know it worked when:** the installer says the install was successful. That's it
+for this step — Step 3 will confirm it actually worked.
 
 ## Step 2 — Download this project
 
@@ -72,123 +63,54 @@ If someone sent you a link to this project on GitHub:
 1. Click the green **`<> Code`** button near the top of the page.
 2. Click **Download ZIP**.
 3. Find the downloaded file (usually in your **Downloads** folder — it'll be named something
-   like `mwo-api-main.zip`).
-4. Right-click that ZIP file and choose **Extract All...**, then click **Extract** (the
-   default location is fine — remember it's going into your Downloads folder).
+   like `mwostats-main.zip`).
+4. Right-click that ZIP file and choose **Extract All...**, then click **Extract**.
 
-You should now have a folder with a name like `mwo-api-main`. Open it and look inside.
+You should now have a folder with a name like `mwostats-main`. Open it and look inside.
 
 ⚠️ **If the only thing inside is *another* folder with almost the same name** (e.g. you open
-`mwo-api-main` and find `mwo-api-main` again inside it), open that inner one too — that's the
-real project folder. You want the folder that directly contains things named `app`, `web`,
-and `requirements.txt`.
+`mwostats-main` and find `mwostats-main` again inside it), open that inner one too — that's
+the real project folder.
 
-✅ **You'll know it worked when:** the folder you're looking at directly contains a folder
-named `app`, a folder named `web`, and a file named `requirements.txt`, sitting right there
-next to each other (not nested inside yet another folder).
+✅ **You'll know it worked when:** the folder you're looking at directly contains a file
+called **`start.bat`**, sitting right next to folders named `app` and `web`.
 
-❌ Don't double-click anything inside this folder yet — none of these files do anything on
-their own by double-clicking. Everything below runs through the black window instead.
+## Step 3 — Double-click `start.bat`
 
-## Step 3 — Open a command window in that folder
+That's the whole step. Find the file named **`start.bat`** in that folder and double-click it.
 
-1. With that folder open in File Explorer (the one containing `app`, `web`,
-   `requirements.txt`), click once in the empty address bar at the top of the window — the
-   bar that shows the folder path, like a breadcrumb trail.
-2. Type `cmd` and press **Enter**.
+A black window will pop up and do everything for you — checking Python is installed
+correctly, installing what the app needs (only the first time; instant every time after), and
+starting the app. After a few seconds, **your browser will open by itself** to the app.
 
-A black window (or a blue/dark "Windows Terminal" window — either is fine) will pop up. This
-is called a **terminal** or **command prompt**. It's where you'll paste the few commands
-below, one at a time, pressing Enter after each one.
+✅ **You'll know it worked when:** a dark-themed page titled "MWO Match Stats" opens in your
+browser automatically, with a message near the top saying no API token is configured yet —
+that's expected, Step 4 fixes it. **Leave the black window open** while you're using the app;
+closing it stops the app. Minimize it if it's in the way.
 
-✅ **You'll know it worked when:** paste this into the black window and press Enter —
+❌ **If a window flashes and disappears instead** — that means something went wrong before it
+could even show you the message. See **[Troubleshooting](#troubleshooting)**.
 
-```
-dir
-```
+❌ **If the black window opens but shows a message about Python not being found** — it'll open
+the Python download page for you automatically. Go do Step 1 again, making extra sure to
+check the "Add python.exe to PATH" box, then double-click `start.bat` again.
 
-— and the list that appears includes `app`, `web`, and `requirements.txt`. That confirms the
-terminal opened in the right folder.
+❌ **If Windows pops up a firewall box** asking whether to allow Python through the firewall —
+click **"Allow access."** This is Windows asking permission for the app to talk to your own
+browser on your own computer; nothing goes out to the internet except the match data it fetches.
 
-Now let's confirm Python actually installed correctly (this catches Step 1's most common
-mistake immediately, instead of leaving it to trip you up later). Paste this and press Enter:
+**To use the app again later** (tomorrow, next week, whenever): just double-click `start.bat`
+again. That's the only step you ever repeat — Steps 1 and 2 are one-time setup.
 
-```
-python --version
-```
-
-✅ **You'll know it worked when:** it prints something like `Python 3.12.4`.
-
-❌ **If instead you see** `'python' is not recognized as an internal or external command` —
-stop here and go to **[Troubleshooting](#troubleshooting)**, first entry. Don't continue to
-Step 4 until this is fixed; every step after this depends on it.
-
-## Step 4 — Install what the app needs
-
-Paste this into the same black window and press Enter:
-
-```
-pip install -r requirements.txt
-```
-
-A wall of text will scroll by as it downloads a handful of things this app depends on. That's
-normal — let it run. This can take anywhere from a few seconds to a couple of minutes
-depending on your internet connection.
-
-✅ **You'll know it worked when:** the text stops scrolling and you see your cursor blinking
-on an empty line again, ideally with no red "ERROR" text above it.
-
-❌ **If you see** `'pip' is not recognized` — same cause and same fix as the `python` error
-above; see Troubleshooting.
-
-## Step 5 — Start the app
-
-In the same black window, paste this and press Enter:
-
-```
-uvicorn app.main:app --reload
-```
-
-✅ **You'll know it worked when:** you see a handful of lines ending with something like
-`Application startup complete.` **Leave this window open and don't type anything else into
-it** — it needs to keep running the whole time you're using the app. Minimize it if it's in
-the way; just don't close it.
-
-❌ **If Windows pops up a firewall box** asking whether to allow Python through the firewall
-on private/public networks — click **"Allow access."** This is Windows asking permission for
-the app to talk to your own browser on your own computer; it's not going out to the internet.
-
-## Step 6 — Open it in your browser
-
-Open Chrome, Edge, or Firefox (whichever you normally use) and type this into the **address
-bar at the top** (not a search engine):
-
-```
-http://localhost:8000
-```
-
-✅ **You'll know it worked when:** a dark-themed page titled "MWO Match Stats" appears, with a
-message near the top saying no API token is configured yet. That message is expected — Step 7
-fixes it.
-
-❌ **If the page won't load** ("can't reach this page" / "connection refused") — go back and
-check the black window from Step 5 is still open and still says `Application startup
-complete`. If you accidentally closed it, redo Step 5.
-
-When you're completely done for the day, click into the black window and press **Ctrl+C** to
-stop the app. To use it again later, you only need to repeat **Step 5** (open a black window
-in the project folder — Step 3 — and run the `uvicorn` command again) — Steps 1, 2, and 4 are
-one-time setup and never need to be repeated.
-
-## Step 7 — Add your MWO API token
+## Step 4 — Add your MWO API token
 
 This is a password-like code that lets the app read your match data from MWO's website.
 
 1. Log into your MWO account, then go to
    **[mwomercs.com/profile/api](https://mwomercs.com/profile/api)** and generate/copy your
    token from there. It'll be a long jumble of letters and numbers.
-2. Back in the app (the browser tab from Step 6), click the **⚙ gear icon** in the top-right
-   corner.
+2. Back in the app (the browser tab that opened in Step 3), click the **⚙ gear icon** in the
+   top-right corner.
 3. Click into the box, paste the token in, and click **Save**.
 
 ✅ **You'll know it worked when:** the box changes to say "Using a token saved in this app,"
@@ -201,6 +123,26 @@ your matches), and it's remembered the next time you start the app — you only 
 **Keep this token private** — anyone who has it can pull your match data. Don't post it
 anywhere, don't paste it into a chat with anyone, and never put it in a file you upload to
 GitHub.
+
+<details>
+<summary>Prefer typing commands yourself, or <code>start.bat</code> isn't working? Click here for the manual version.</summary>
+
+Open a command window in the project folder (click the address bar in File Explorer, type
+`cmd`, press Enter), then run these two commands, each followed by Enter:
+
+```
+pip install -r requirements.txt
+```
+
+```
+uvicorn app.main:app --reload
+```
+
+Once you see `Application startup complete`, open your browser to `http://localhost:8000`
+yourself. This is exactly what `start.bat` automates — useful if you want to see error output
+directly, or if something about your setup makes the automatic version misbehave.
+
+</details>
 
 ---
 
@@ -243,52 +185,28 @@ Find the message closest to what's actually on your screen. If none of these mat
 scroll to the very bottom of this list anyway — the last entry covers what to do when nothing
 else fits.
 
-**"`python` is not recognized as an internal or external command"**
-Python wasn't added to your PATH during install. Fix: reinstall Python (Step 1) and make
-absolutely sure you check **"Add python.exe to PATH"** on the very first screen of the
-installer — it's easy to click past it. After reinstalling, **close the black window
-completely and open a brand new one** (Step 3) before trying again; an already-open window
-won't notice the change. If it's still not working after that, restart your computer — Windows
-sometimes needs a full restart to notice a PATH change.
+**The black window flashes and disappears immediately**
+It hit an error before it could print anything readable. Instead of double-clicking
+`start.bat`, right-click it and choose **"Edit"** (or open a black window yourself — address
+bar, type `cmd`, Enter — then drag `start.bat` into that window and press Enter). Either way
+the window stays open and you can read the actual error, which is usually one of the entries
+below.
 
-**Typing `python` opened the Microsoft Store instead of showing a version number**
-This is Windows trying to be "helpful" and is one of the most common gotchas — it means
-Python genuinely isn't installed yet, even if you thought you already did Step 1. Close the
-Store window, go do Step 1 for real, and make sure you double-click the file you downloaded
-from python.org (not something from the Store).
+**It says Python isn't installed, but you're sure you installed it**
+`start.bat` opens the Python download page for you automatically when it can't find Python.
+The most common reason this happens even after installing: the **"Add python.exe to PATH"**
+box wasn't checked during install (it's easy to miss). Reinstall Python (Step 1), definitely
+check that box this time, then double-click `start.bat` again.
 
-**`python --version` doesn't work, but you want a quick alternate to try before reinstalling**
-Some Windows installs use `py` instead of `python`. Try:
-```
-py --version
-```
-If that works, use `py` in place of `python` anywhere else in this guide (the `pip` and
-`uvicorn` commands don't change either way).
+**Typing anything with `python` in it opened the Microsoft Store instead**
+This is Windows trying to be "helpful," and it means Python genuinely isn't installed yet,
+even if you thought you already did Step 1. Close the Store window and redo Step 1, making
+sure you run the installer you downloaded from **python.org**, not anything from the Store.
 
-**"`pip` is not recognized"**
-Same underlying cause and same fix as the `python` error above — it means Python's PATH
-still isn't set up correctly. Reinstall Python with the PATH box checked, then open a brand
-new black window before trying again.
-
-**A command runs but does something completely unexpected, or errors in a way nothing here describes**
-The single most common cause is a command copied from somewhere other than this page (a chat
-app, a Word doc, a note-taking app) where quote marks or dashes got silently turned into
-curly "smart" versions that look identical but aren't. Come back to this page, re-copy the
-exact command from the gray box, and paste it fresh.
-
-**Nothing happens when you double-click a `.py` file, or a black window flashes and disappears**
-That's expected — don't double-click files inside the project folder. Everything in this
-guide runs by pasting commands into the black window from Step 3, never by double-clicking.
-
-**Pasting into the black window doesn't do anything**
-Try right-clicking inside the window instead of Ctrl+V — in the classic black Command Prompt,
-right-click-to-paste always works even when Ctrl+V doesn't.
-
-**`pip install` fails with lots of red text, or something about a network/connection error**
-Check your internet connection — this step downloads files. If you're on a work or school
-network, a firewall or proxy can also block it; try a home network if you have one available.
-If you see a permissions error instead, try closing the black window, reopening it, and
-running the same command again.
+**The black window shows a wall of red text during setup, or something about a network error**
+That's the "installing what the app needs" part failing. Check your internet connection —
+this step downloads a few files. A work or school network's firewall can also block it; a
+home network usually works if you have one available.
 
 **Antivirus flagged or deleted something from the project folder**
 Some antivirus tools are overly cautious about downloaded ZIPs containing code. This project
@@ -296,8 +214,18 @@ doesn't do anything malicious — you can safely tell your antivirus to allow it
 file. If you're not comfortable doing that, it's fine to leave it blocked; just know that's
 why something stopped working.
 
+**The browser didn't open by itself**
+Open one yourself (Chrome, Edge, Firefox — whichever you normally use) and type
+`http://localhost:8000` into the **address bar** at the top (not a search engine). This can
+happen on the very first run if your computer is slower to start the app than `start.bat`
+expects to wait.
+
+**The page won't load ("can't reach this page" / "connection refused")**
+Check the black window from Step 3 is still open. If you accidentally closed it, double-click
+`start.bat` again.
+
 **Matches won't fetch / says no API token is configured**
-Click the **⚙** button in the top-right and add your token there (Step 7 above). If you
+Click the **⚙** button in the top-right and add your token there (Step 4 above). If you
 already added one and it's still not working, click ⚙ again, clear the box, and paste a fresh
 copy of your token — a copy-paste can silently pick up a trailing space or a missing
 character.
@@ -308,28 +236,24 @@ private/custom lobby matches (scrims, league games) — it will reject a Quick P
 even if you copied it perfectly. Double-check it came from a private match. If it did and
 it's still failing, confirm the ID is copied exactly from the end-round screen with no typos.
 
-**"Address already in use" / port 8000 won't start**
-Something else is already using that port, possibly the app already running in another
-window you forgot about. Look for another black window with `uvicorn` running in it and close
-it, or run this instead and use the address it prints:
-```
-uvicorn app.main:app --reload --port 8001
-```
-then go to `http://localhost:8001` in your browser instead of 8000.
+**"Address already in use" / the app won't start**
+Something else is already using port 8000, possibly the app already running in another window
+you forgot about (look for another black window and close it). If that's not it, see the
+manual-method box in Step 3 above and add `--port 8001` to the `uvicorn` command, then go to
+`http://localhost:8001` instead.
 
-**I closed the command window and now the site won't load**
-That's expected — closing it stops the app. Reopen a command window in the project folder
-(Step 3) and run `uvicorn app.main:app --reload` again (Step 5). Nothing you've entered gets
-lost; it's all saved on your computer, not in that window.
+**I closed the black window and now the site won't load**
+That's expected — closing it stops the app. Double-click `start.bat` again. Nothing you've
+entered gets lost; it's all saved on your computer, not in that window.
 
 **None of the above matches what you're seeing**
 Note down the *exact* text of any error message (copy it if you can) and which numbered step
 you were on when it happened — that's the information that actually matters for tracking down
 what went wrong, far more than a description like "it didn't work."
 
-**On a Mac?** Steps are the same, but: install Python from python.org (no PATH checkbox
-needed on Mac), use the **Terminal** app instead of `cmd`, and everything else — the `pip
-install` and `uvicorn` commands — is identical.
+**On a Mac?** `start.bat` is Windows-only. Use the manual-method box in Step 3 above instead:
+install Python from python.org (no PATH checkbox needed on Mac), use the **Terminal** app
+instead of `cmd`, and the `pip install` / `uvicorn` commands are identical.
 
 ---
 <br>
@@ -513,6 +437,7 @@ Shipped modules: `core_aggregates`, `leaderboards`, `match_results`, `player_det
 ### Layout
 
 ```
+start.bat          double-click launcher: installs deps, runs uvicorn, opens the browser
 app/
   main.py          FastAPI app; serves the API and web/ from one process
   config.py        config.json + MWO_API_TOKEN from .env (the fallback default)
