@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import ConfigError, get_settings
 from .db import init_db
 from .metrics import descriptors  # noqa: F401  (import triggers module discovery)
-from .routes import matches, metrics, series, settings as settings_routes
+from .routes import matches, metrics, players, series, settings as settings_routes
 from .routes.deps import get_conn
 from .service import token_status
 
@@ -39,6 +39,7 @@ app.include_router(matches.router)
 app.include_router(series.router)
 app.include_router(metrics.router)
 app.include_router(settings_routes.router)
+app.include_router(players.router)
 
 
 @app.get("/api/health")

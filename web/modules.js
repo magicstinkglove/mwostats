@@ -67,7 +67,7 @@ function renderStats(section) {
       // "Team B" text) so a long username never runs on into the number or gets clipped
       // mid-word. The number becomes the supporting line underneath it. A stat with no
       // `name` (plain numeric tiles elsewhere) is unaffected — value stays the headline.
-      grid.append(el('div', { class: `stat${stat.name ? ' has-name' : ''}` },
+      grid.append(el('div', { class: `stat${stat.name ? ' has-name' : ''}${stat.wide ? ' stat-wide' : ''}` },
         el('div', { class: 'stat-label', text: stat.label }),
         stat.name ? el('div', { class: 'stat-name' },
           stat.team ? el('span', { class: 'stat-name-dot', style: `background:${TEAM_DOT[stat.team] || 'var(--muted)'}` }) : null,

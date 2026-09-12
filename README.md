@@ -271,7 +271,12 @@ version misbehave.
      and map usage.
    - **Matches** — the full scoreboard for every game, one after another, in order.
 6. **Click any player's name** (in the Teams panel or a leaderboard) for a drill-down modal —
-   their per-match history, trend, and mechs piloted.
+   their per-match history, trend, and mechs piloted. If they're tracked on
+   **[The Jarl's List](https://leaderboard.isengrim.org)**, a career-stats section appears
+   too — their **overall (lifetime) rank**, percentile, K/D, and weight-class tendency, not
+   just one season, with a link to their full profile. Not every player is tracked there
+   (newer or very casual pilots often aren't, and some don't have enough games for a lifetime
+   rank yet) — when that's the case, this section just doesn't appear, nothing to worry about.
 
 You can keep more than one **series** (a named group of matches) — click the switcher in the
 top-right to see all of them, click one to switch, or click its **×** to delete it. **+ New
@@ -422,6 +427,49 @@ anything; the app itself no longer requires `.env` to have a token at all, which
 this ever runs somewhere `.env` isn't yours to edit. The token is never echoed back over the
 API — every response reports it masked (`service.mask_token`, last 4 characters only).
 
+### Jarl's List enrichment
+
+The player drill-down modal enriches itself with lifetime career stats from
+[The Jarl's List](https://leaderboard.isengrim.org) (`leaderboard.isengrim.org`), a
+community-run, public, unauthenticated API — confirmed live by hand, documented at `/about`.
+`app/jarls_client.py` calls one endpoint:
+
+```
+GET /api/usernames/{name}   lifetime "Overall" record — same numbers the site's own
+                            search page leads with (verified by hand against a real,
+                            high-game-count profile: every field matched exactly)
+```
+
+A player without enough of a track record for a lifetime rank (or a retired one) gets back
+`Rank: 0, Percentile: null` instead of real values — `service._build_jarls_profile()` turns
+that into `has_rank: false` so the UI shows their real numbers (games played, K/D, weight
+class) without inventing a rank. This endpoint intentionally is **not** filtered to the
+current season — a player's most-recently-played season is not necessarily the game's actual
+current one (an inactive account's "latest" season can be a year+ stale), and showing that
+without saying so would misrepresent an old snapshot as current form. The lifetime "Overall"
+figure sidesteps the whole problem.
+
+`service.get_jarls_profile()` caches the result in the `jarls_cache` table for
+`JARLS_CACHE_TTL_HOURS` (12h) — **including negative results**, so a player nobody tracks
+doesn't get re-queried every time their name is clicked. There's no documented rate limit,
+which is exactly why this caches instead of calling it live on every modal open. The route
+handler (`routes/players.py`) explicitly commits after the lookup — a real bug during
+development had this write living only in that request's transaction, silently defeating the
+cache on every single call; `test_jarls_cache_persists_across_separate_requests` guards it by
+issuing two genuinely separate HTTP requests, since a same-connection test fixture can't
+catch this class of bug.
+
+This is deliberately best-effort: any failure (unknown pilot, their site down, a timeout)
+collapses to `None`/`{"found": false}` rather than an error, and the frontend fetches it
+*after* the modal's own data has already rendered — a slow or failing lookup here can never
+block or break the rest of the player modal. Most players simply aren't tracked (newer or
+casual accounts) and that's expected, not a bug — the UI shows nothing for them rather than
+a "not found" message that would fire constantly.
+
+Note only weight-class tendency is available here (Light/Medium/Heavy/Assault %), not
+specific chassis — that's what the existing "Mechs piloted" data (from your own loaded
+matches, via MWO's own API) already covers.
+
 ### Summary vs. team-scoped views
 
 The dashboard is tabs, not one long scroll: **Summary** (both teams compared) plus one tab
@@ -555,15 +603,16 @@ app/
   config.py        config.json + MWO_API_TOKEN from .env (the fallback default)
   db.py            SQLite schema and queries, incl. the api_token override
   mwo_client.py    HTTP client: auth-mode fallback, throttling, typed errors
+  jarls_client.py  client for the third-party Jarl's List career-stats API
   cache.py         raw JSON on disk — completed matches are cached forever
   normalize.py     raw API body -> Match / PlayerStat
   teams.py         co-occurrence inference          <- the core logic
-  service.py       ingest, context assembly, token resolution (.env vs saved-in-app)
+  service.py       ingest, context assembly, token resolution, Jarl's List caching
   metrics/         auto-discovered metric modules
-  routes/          matches, series, metrics, settings
+  routes/          matches, series, metrics, settings, players
 web/               index.html + app.js + modules.js + style.css (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             104 tests
+tests/             113 tests
 ```
 
 ### Caching
@@ -588,6 +637,7 @@ PUT    /api/series/{id}/assignments            {username, team, match_id?}
 GET    /api/metrics/modules
 GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own page
 GET    /api/series/{id}/players/{username}
+GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any
@@ -602,13 +652,14 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-104 tests covering the inference algorithm (clean swaps, rotating substitutes, pinned
+113 tests covering the inference algorithm (clean swaps, rotating substitutes, pinned
 overrides, contested players, disjoint groups), clan-tag auto-naming, normalization of
 partial and malformed payloads, hand-computed metric values on both the summary and
 team-scoped views, the HTTP layer end to end with the network mocked, token
-resolution/masking, and a concurrency regression test (FastAPI can run a request's dependency
-and endpoint body on different threadpool threads — SQLite connections need
-`check_same_thread=False` or every concurrent request 500s, which is exactly what the
-dashboard sends on load).
+resolution/masking, Jarl's List caching (including a same-connection-vs-per-request
+regression test — see `test_jarls_cache_persists_across_separate_requests`), and a
+concurrency regression test (FastAPI can run a request's dependency and endpoint body on
+different threadpool threads — SQLite connections need `check_same_thread=False` or every
+concurrent request 500s, which is exactly what the dashboard sends on load).
 
 </details>

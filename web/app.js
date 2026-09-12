@@ -472,7 +472,66 @@ async function showPlayer(username) {
     );
   } catch (error) {
     body.replaceChildren(el('p', { class: 'note', text: error.message }));
+    return;
   }
+
+  // Best-effort external enrichment — fetched after the main content is already on
+  // screen, and never allowed to disturb it. Most casual/newer pilots simply aren't
+  // tracked on Jarl's List, so silently showing nothing is the right failure mode,
+  // not an error message every time that turns out to be true.
+  try {
+    const jarls = await api(`/api/players/${encodeURIComponent(username)}/jarls`);
+    if (jarls.found) body.append(renderJarlsSection(jarls));
+  } catch (error) {
+    /* silently skip */
+  }
+}
+
+function renderJarlsSection(jarls) {
+  // This is the site's own "Overall" row (lifetime, not any single season) — verified
+  // by hand against a real profile. A player without enough of a track record for a
+  // lifetime rank (or a retired one) has has_rank=false; show their real numbers
+  // without inventing a rank for them.
+  const stats = [];
+  if (jarls.has_rank) {
+    stats.push({ label: 'Rank', value: `#${jarls.rank}` });
+    stats.push({ label: 'Percentile', value: `${jarls.percentile}` });
+  }
+  if (jarls.wins != null && jarls.losses != null) {
+    stats.push({ label: 'Record', value: `${jarls.wins}-${jarls.losses}` });
+  }
+  if (jarls.kd_ratio != null) {
+    stats.push({ label: 'K/D', value: jarls.kd_ratio.toFixed(2) });
+  }
+  if (jarls.games_played != null) {
+    stats.push({
+      label: 'Games Played', value: `${jarls.games_played}`,
+      hint: jarls.first_season != null ? `Season ${jarls.first_season}–${jarls.last_season}` : '',
+    });
+  }
+  if (jarls.weight_class) {
+    const label = ['light', 'medium', 'heavy', 'assault']
+      .map((cls) => [cls, jarls.weight_class[cls]])
+      .filter(([, pct]) => pct > 0)
+      .map(([cls, pct]) => `${pct}% ${cls[0].toUpperCase()}${cls.slice(1)}`)
+      .join(', ');
+    if (label) stats.push({ label: 'Weight Class', value: label, wide: true });
+  }
+
+  let note = "Overall (lifetime) stats from leaderboard.isengrim.org — not affiliated with this app.";
+  if (!jarls.has_rank) {
+    note = `Not enough of a track record for an overall rank yet. ${note}`;
+  }
+
+  const section = renderSection({
+    type: 'stats', title: "Jarl's List",
+    groups: [{ label: jarls.unit_tag ? `Career — [${jarls.unit_tag}]` : 'Career', stats }],
+    note,
+  });
+  section.append(el('a', {
+    class: 'jarls-link', href: jarls.profile_url, target: '_blank', rel: 'noopener noreferrer',
+  }, "View full profile on Jarl's List →"));
+  return section;
 }
 
 /* ------------------------------------------------------------------ settings */

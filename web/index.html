@@ -74,11 +74,17 @@
       <div id="review-strip" class="review-strip" hidden></div>
       <div class="rosters">
         <div class="roster" data-team="A">
-          <input class="team-name" id="team-a-name" value="Team A" spellcheck="false">
+          <div class="team-name-wrap">
+            <input class="team-name" id="team-a-name" value="Team A" spellcheck="false" title="Click to rename">
+            <span class="team-name-pencil" aria-hidden="true">✎</span>
+          </div>
           <ul id="roster-a"></ul>
         </div>
         <div class="roster" data-team="B">
-          <input class="team-name" id="team-b-name" value="Team B" spellcheck="false">
+          <div class="team-name-wrap">
+            <input class="team-name" id="team-b-name" value="Team B" spellcheck="false" title="Click to rename">
+            <span class="team-name-pencil" aria-hidden="true">✎</span>
+          </div>
           <ul id="roster-b"></ul>
         </div>
       </div>

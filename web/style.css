@@ -187,10 +187,22 @@ main { max-width: 1240px; margin: 0 auto; padding: 22px 24px 80px; }
 .roster { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .roster[data-team=A] { border-top: 3px solid var(--team-a); }
 .roster[data-team=B] { border-top: 3px solid var(--team-b); }
+.team-name-wrap { position: relative; }
 .team-name {
   width: 100%; border: 0; border-bottom: 1px solid var(--border); border-radius: 0;
-  background: var(--panel-2); font-size: 15px; font-weight: 600; padding: 11px 14px;
+  background: var(--panel-2); font-size: 15px; font-weight: 600; padding: 11px 34px 11px 14px;
+  cursor: text; transition: background .12s;
 }
+.team-name-wrap:hover .team-name { background: var(--panel); }
+/* Always-on, not hover-only — the point is that renaming is obvious at a glance,
+   not something you discover by accidentally hovering over a label. */
+.team-name-pencil {
+  position: absolute; right: 13px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; color: var(--muted); opacity: .6; pointer-events: none;
+  transition: opacity .12s, color .12s;
+}
+.team-name-wrap:hover .team-name-pencil { opacity: 1; }
+.team-name:focus ~ .team-name-pencil { opacity: 1; color: var(--text); }
 .roster[data-team=A] .team-name { color: var(--team-a); }
 .roster[data-team=B] .team-name { color: var(--team-b); }
 .roster ul { list-style: none; margin: 0; padding: 6px; }
@@ -257,6 +269,11 @@ main { max-width: 1240px; margin: 0 auto; padding: 22px 24px 80px; }
   color: var(--muted); margin: 0 0 11px; font-weight: 600;
 }
 .section-note { font-size: 12px; color: var(--muted); margin: 9px 0 0; font-style: italic; }
+.jarls-link {
+  display: inline-block; margin-top: 10px; font-size: 13px;
+  color: var(--team-a); text-decoration: none;
+}
+.jarls-link:hover { text-decoration: underline; }
 
 /* stats */
 .stat-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
@@ -280,6 +297,14 @@ main { max-width: 1240px; margin: 0 auto; padding: 22px 24px 80px; }
 }
 .stat.has-name .stat-value {
   font-size: 14px; font-weight: 500; color: var(--muted); margin-top: 2px;
+}
+
+/* A stat whose value is prose rather than a number (e.g. weight-class breakdown) —
+   spans the full row and drops the giant numeric styling so it doesn't wrap into
+   jagged multi-line text at 20px bold. */
+.stat.stat-wide { grid-column: 1 / -1; }
+.stat.stat-wide .stat-value {
+  font-size: 14px; font-weight: 500; color: var(--text); white-space: normal;
 }
 
 /* table */

@@ -79,6 +79,16 @@ CREATE TABLE IF NOT EXISTS app_settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+-- Cached lookups against the third-party Jarl's List API (see jarls_client.py).
+-- data_json NULL means "confirmed not on Jarl's List" — caching that negative result
+-- too, not just successful ones, is what keeps this from re-querying their server for
+-- every untracked/casual player on every modal open.
+CREATE TABLE IF NOT EXISTS jarls_cache (
+    username   TEXT PRIMARY KEY,
+    data_json  TEXT,
+    fetched_at TEXT NOT NULL
+);
 """
 
 
@@ -336,3 +346,28 @@ def set_app_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
 
 def delete_app_setting(conn: sqlite3.Connection, key: str) -> None:
     conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+
+
+# ---------------------------------------------------------------- Jarl's List cache
+
+
+def get_jarls_cache(conn: sqlite3.Connection, username: str) -> tuple[dict | None, str] | None:
+    """(profile_or_None, fetched_at) if a cache row exists at all, else None — the row
+    existing but holding a NULL profile is a cached "not found", distinct from never
+    having looked this player up before."""
+    row = conn.execute(
+        "SELECT data_json, fetched_at FROM jarls_cache WHERE username = ?", (username,)
+    ).fetchone()
+    if row is None:
+        return None
+    data = json.loads(row["data_json"]) if row["data_json"] else None
+    return data, row["fetched_at"]
+
+
+def set_jarls_cache(conn: sqlite3.Connection, username: str, profile: dict | None) -> None:
+    conn.execute(
+        """INSERT INTO jarls_cache (username, data_json, fetched_at) VALUES (?,?,?)
+           ON CONFLICT(username) DO UPDATE SET
+               data_json=excluded.data_json, fetched_at=excluded.fetched_at""",
+        (username, json.dumps(profile) if profile is not None else None, _now()),
+    )

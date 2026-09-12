@@ -105,6 +105,88 @@ def test_a_saved_token_is_never_returned_in_full(client):
     assert "super-secret-value-123" not in str(body)
 
 
+# ---------------------------------------------------------------- Jarl's List enrichment
+
+
+def test_jarls_lookup_for_a_known_player(client, monkeypatch):
+    class FakeJarls:
+        def __init__(self, *a, **k):
+            pass
+
+        def get_aggregate(self, username):
+            return {"Rank": 3, "Percentile": 99.988, "UnitTag": "V1LE",
+                     "TotalWins": 4927, "TotalLosses": 1114, "GamesPlayed": 6044,
+                     "KDRatio": 7.28, "FirstSeason": 0, "LastSeason": 121,
+                     "LightPercent": 3, "MediumPercent": 10, "HeavyPercent": 27,
+                     "AssaultPercent": 54}
+
+    monkeypatch.setattr("app.service.JarlsClient", FakeJarls)
+
+    body = client.get("/api/players/Chimera_/jarls").json()
+    assert body["found"] is True
+    assert body["has_rank"] is True
+    assert body["rank"] == 3
+    assert body["unit_tag"] == "V1LE"
+    assert "leaderboard.isengrim.org" in body["profile_url"]
+
+
+def test_jarls_cache_persists_across_separate_requests(client, monkeypatch):
+    """Each request gets its own connection (see routes/deps.py), so a cache write
+    that isn't committed only lives inside that one request's transaction and is
+    rolled back when the connection closes — the next request would re-hit Jarl's
+    List every time, silently defeating the whole point of caching. This is exactly
+    the bug a same-connection unit test fixture can't catch."""
+    calls = []
+
+    class CountingFakeJarls:
+        def __init__(self, *a, **k):
+            pass
+
+        def get_aggregate(self, username):
+            calls.append(username)
+            return {"Rank": 1, "Percentile": 99.0, "TotalWins": 1, "TotalLosses": 0,
+                     "GamesPlayed": 1, "KDRatio": 1.0}
+
+    monkeypatch.setattr("app.service.JarlsClient", CountingFakeJarls)
+
+    client.get("/api/players/SomePilot/jarls")
+    client.get("/api/players/SomePilot/jarls")
+
+    assert calls == ["SomePilot"]  # second request served from the DB cache, not refetched
+
+
+def test_jarls_lookup_for_an_untracked_player(client, monkeypatch):
+    class FakeJarls:
+        def __init__(self, *a, **k):
+            pass
+
+        def get_aggregate(self, username):
+            return None
+
+    monkeypatch.setattr("app.service.JarlsClient", FakeJarls)
+
+    body = client.get("/api/players/NobodyTracked/jarls").json()
+    assert body == {"found": False}
+
+
+def test_jarls_lookup_for_a_player_without_a_lifetime_rank(client, monkeypatch):
+    """Rank 0 / Percentile null (too few games, or retired) — real numbers, no rank."""
+    class FakeJarls:
+        def __init__(self, *a, **k):
+            pass
+
+        def get_aggregate(self, username):
+            return {"Rank": 0, "Percentile": None, "TotalWins": 27, "TotalLosses": 5,
+                     "GamesPlayed": 32, "KDRatio": 17.67}
+
+    monkeypatch.setattr("app.service.JarlsClient", FakeJarls)
+
+    body = client.get("/api/players/Magic%20Stink%20Glove/jarls").json()
+    assert body["found"] is True
+    assert body["has_rank"] is False
+    assert body["games_played"] == 32
+
+
 def test_index_page_is_served(client):
     response = client.get("/")
     assert response.status_code == 200

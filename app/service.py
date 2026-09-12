@@ -5,13 +5,16 @@ from __future__ import annotations
 import dataclasses
 import re
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote_plus
 
 from .cache import RawCache
 from .config import Settings, get_settings
 from .db import (
     delete_app_setting,
     get_app_setting,
+    get_jarls_cache,
     get_match_overrides,
     get_overrides,
     get_series,
@@ -20,7 +23,9 @@ from .db import (
     rename_teams,
     save_match,
     set_app_setting,
+    set_jarls_cache,
 )
+from .jarls_client import JarlsClient
 from .metrics.base import SeriesContext
 from .models import TEAM_A, TEAM_B, DEFAULT_TEAM_A_NAME, DEFAULT_TEAM_B_NAME, Match
 from .mwo_client import MatchUnavailable, MWOApiError, MWOClient
@@ -75,6 +80,72 @@ def set_api_token(conn: sqlite3.Connection, token: str) -> None:
 def clear_api_token(conn: sqlite3.Connection) -> None:
     """Revert to whatever (if anything) .env provides."""
     delete_app_setting(conn, _API_TOKEN_KEY)
+
+
+# ---------------------------------------------------------------- Jarl's List enrichment
+
+JARLS_CACHE_TTL_HOURS = 12
+
+
+def _hours_since(iso_timestamp: str) -> float:
+    then = datetime.fromisoformat(iso_timestamp)
+    if then.tzinfo is None:
+        then = then.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - then).total_seconds() / 3600.0
+
+
+def _build_jarls_profile(username: str, aggregate: dict) -> dict:
+    """Shape the aggregate endpoint into a compact profile — this *is* the "Overall" row
+    the leaderboard's own website leads with, verified by hand against a real profile
+    with a large game count (every field matched). `has_rank` is False when Rank is 0 /
+    Percentile is null — seen for accounts without enough of a lifetime track record (or
+    a retired one); the caller shows what real numbers exist without inventing a rank.
+    """
+    rank = aggregate.get("Rank")
+    percentile = aggregate.get("Percentile")
+    return {
+        "profile_url": f"https://leaderboard.isengrim.org/search?u={quote_plus(username)}",
+        "unit_tag": aggregate.get("UnitTag"),
+        "has_rank": bool(rank) and percentile is not None,
+        "rank": rank,
+        "percentile": percentile,
+        "wins": aggregate.get("TotalWins"),
+        "losses": aggregate.get("TotalLosses"),
+        "kd_ratio": aggregate.get("KDRatio"),
+        "wl_ratio": aggregate.get("WLRatio"),
+        "survival_rate": aggregate.get("SurvivalRate"),
+        "games_played": aggregate.get("GamesPlayed"),
+        "avg_match_score": aggregate.get("AverageMatchScore"),
+        "first_season": aggregate.get("FirstSeason"),
+        "last_season": aggregate.get("LastSeason"),
+        "weight_class": {
+            "light": aggregate.get("LightPercent"),
+            "medium": aggregate.get("MediumPercent"),
+            "heavy": aggregate.get("HeavyPercent"),
+            "assault": aggregate.get("AssaultPercent"),
+        },
+    }
+
+
+def get_jarls_profile(conn: sqlite3.Connection, username: str) -> dict | None:
+    """Best-effort career lookup on the third-party Jarl's List. None if the pilot isn't
+    tracked there, or the lookup failed — either way, callers must treat this as optional
+    enrichment, never a required part of showing a player.
+
+    Cached for JARLS_CACHE_TTL_HOURS regardless of outcome, so a player nobody tracks
+    doesn't get re-queried on every single modal open — see jarls_cache in db.py.
+    """
+    cached = get_jarls_cache(conn, username)
+    if cached is not None:
+        profile, fetched_at = cached
+        if _hours_since(fetched_at) < JARLS_CACHE_TTL_HOURS:
+            return profile
+
+    aggregate = JarlsClient().get_aggregate(username)
+    profile = _build_jarls_profile(username, aggregate) if aggregate else None
+
+    set_jarls_cache(conn, username, profile)
+    return profile
 
 
 def parse_match_ids(raw: str | list[str]) -> list[str]:
