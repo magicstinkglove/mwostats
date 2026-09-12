@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MWO Match Stats</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>%E2%96%9E</text></svg>">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="app-header">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▞</span>
+      <div>
+        <h1>MWO Match Stats</h1>
+        <p class="sub">Team-aware analysis across multiple matches</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="series-switcher" id="series-switcher">
+        <button type="button" id="series-trigger" class="series-trigger"
+                aria-haspopup="listbox" aria-expanded="false">
+          <span id="series-trigger-label">Loading…</span>
+          <span class="chev" aria-hidden="true">▾</span>
+        </button>
+        <div id="series-menu" class="series-menu" role="listbox" hidden></div>
+      </div>
+      <button id="new-series-btn" class="btn btn-ghost">+ New series</button>
+      <button id="settings-btn" class="btn btn-ghost btn-icon" title="Settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- Primary view switcher — lives in the sticky header, not buried in the page,
+       so it reads as navigation rather than another content section. -->
+  <nav id="tab-bar" class="tab-bar" hidden></nav>
+</div>
+
+<div id="banner" class="banner" hidden></div>
+
+<main>
+  <!-- ---------------------------------------------------------- match input -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Matches</h2>
+      <span id="match-count" class="pill">0 matches</span>
+    </div>
+    <div class="panel-body">
+      <label class="field-label" for="match-input">
+        Match IDs — paste as many as you like, separated by spaces, commas or newlines
+      </label>
+      <textarea id="match-input" rows="3"
+                placeholder="88117337778826&#10;88117337778827, 88117337778828"></textarea>
+      <div class="row">
+        <button id="add-matches-btn" class="btn btn-primary">Add matches</button>
+        <label class="checkbox">
+          <input type="checkbox" id="force-refresh"> Re-fetch even if cached
+        </label>
+      </div>
+      <div id="ingest-log" class="ingest-log"></div>
+      <div id="match-chips" class="chips"></div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- teams -->
+  <section class="panel" id="teams-panel" hidden>
+    <div class="panel-head">
+      <h2>Teams</h2>
+      <span class="hint">Inferred from who plays alongside whom — side swaps and subs handled</span>
+    </div>
+    <div class="panel-body">
+      <div id="warnings" class="warnings"></div>
+      <div id="review-strip" class="review-strip" hidden></div>
+      <div class="rosters">
+        <div class="roster" data-team="A">
+          <input class="team-name" id="team-a-name" value="Team A" spellcheck="false">
+          <ul id="roster-a"></ul>
+        </div>
+        <div class="roster" data-team="B">
+          <input class="team-name" id="team-b-name" value="Team B" spellcheck="false">
+          <ul id="roster-b"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- metrics -->
+  <section id="metrics" class="metrics"></section>
+</main>
+
+<div id="player-modal" class="modal" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="modal-close">&times;</button>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<div id="settings-modal" class="modal" hidden>
+  <div class="modal-card">
+    <button class="modal-close" id="settings-close">&times;</button>
+    <h2>Settings</h2>
+    <p class="modal-sub">The token used to pull match data from mwomercs.com.</p>
+
+    <div id="token-status" class="token-status"></div>
+
+    <label class="field-label" for="token-input">
+      New API token — generate one at
+      <a href="https://mwomercs.com/profile/api" target="_blank" rel="noopener">mwomercs.com/profile/api</a>
+    </label>
+    <div class="token-input-row">
+      <input type="password" id="token-input" placeholder="Paste your token" autocomplete="off">
+      <button id="token-save-btn" class="btn btn-primary">Save</button>
+    </div>
+    <button id="token-clear-btn" class="btn btn-ghost" hidden>Clear saved token</button>
+    <p id="token-form-note" class="section-note"></p>
+  </div>
+</div>
+
+<script src="/static/modules.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

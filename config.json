@@ -1,0 +1,9 @@
+{
+  "api_base_url": "https://mwomercs.com/api/v1",
+  "auth_mode": "auto",
+  "cache_enabled": true,
+  "cache_dir": "data",
+  "max_cache_age_hours": 24,
+  "request_delay_seconds": 0.5,
+  "request_timeout_seconds": 20
+}

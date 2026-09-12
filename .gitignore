@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+
+# Local Claude Code tool-permission settings (machine-specific paths/username)
+.claude/settings.local.json
+
+# Cached API responses + local database
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
