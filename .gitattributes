@@ -1,0 +1,6 @@
+# start.command is a shell script executed on macOS via its shebang line — a stray \r
+# there (from Windows checking it out with CRLF) breaks it with a cryptic "bad
+# interpreter" error. Force LF unconditionally, regardless of any contributor's
+# autocrlf setting.
+start.command text eol=lf
+*.sh text eol=lf
