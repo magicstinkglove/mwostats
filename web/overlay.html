@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MWO Overlay</title>
+  <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,leaders,spotlight
+       (default: all). Driven from /caster; polls the app every 2s. -->
+  <style>
+    :root {
+      --team-a: #f0a04b;
+      --team-b: #58b6dd;
+      --ink: #f4f6f8;
+      --dim: #a7b0bb;
+      --plate: rgba(11, 15, 20, 0.88);
+      --plate-2: rgba(22, 28, 36, 0.92);
+      --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    }
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    body { width: 1920px; height: 1080px; position: relative; font-family: var(--font); color: var(--ink); }
+    [hidden] { display: none !important; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    /* ---------------------------------------------------- scorebug */
+    #score {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      display: grid; grid-template-columns: 340px 64px 150px 64px 340px; height: 64px;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
+    }
+    .sb-name {
+      display: flex; align-items: center; padding: 0 22px; background: var(--plate);
+      font-size: 28px; font-weight: 700; letter-spacing: .5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sb-name.a { justify-content: flex-end; clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%); }
+    .sb-name.b { clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
+    .sb-wins { display: grid; place-items: center; font-size: 40px; font-weight: 800; color: #10151b; }
+    .sb-wins.a { background: var(--team-a); }
+    .sb-wins.b { background: var(--team-b); }
+    .sb-mid {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--plate-2); line-height: 1.1;
+    }
+    .sb-mid .label { font-size: 13px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; }
+    .sb-mid .value { font-size: 24px; font-weight: 700; }
+    .pop { animation: pop .7s ease-out; }
+    @keyframes pop { 0% { transform: scale(1.6); filter: brightness(1.8); } 100% { transform: scale(1); } }
+
+    /* ---------------------------------------------------- last match strip */
+    #last {
+      position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 18px; padding: 8px 22px;
+      background: var(--plate); font-size: 19px; white-space: nowrap;
+      border-bottom: 3px solid var(--accent, var(--dim));
+    }
+    #last .tag { color: var(--dim); text-transform: uppercase; letter-spacing: 1.5px; font-size: 14px; }
+    #last .win { font-weight: 700; color: var(--accent, var(--ink)); }
+    #last .mvp b { color: var(--ink); }
+    #last .sep { width: 1px; height: 20px; background: rgba(255,255,255,.18); }
+
+    /* ---------------------------------------------------- leaders */
+    #leaders {
+      position: absolute; right: 28px; bottom: 150px; width: 330px;
+      background: var(--plate); filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
+    }
+    #leaders h3 {
+      margin: 0; padding: 8px 16px; font-size: 14px; letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--dim); background: var(--plate-2);
+    }
+    .ld-row { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 10px; padding: 9px 16px; border-left: 5px solid var(--c); }
+    .ld-row + .ld-row { border-top: 1px solid rgba(255,255,255,.07); }
+    .ld-label { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+    .ld-name { font-size: 19px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ld-value { font-size: 22px; font-weight: 800; }
+
+    /* ---------------------------------------------------- spotlight lower third */
+    #spotlight {
+      position: absolute; left: 60px; bottom: 70px; display: flex; align-items: stretch;
+      filter: drop-shadow(0 6px 18px rgba(0,0,0,.5));
+      transform: translateX(-120%); opacity: 0; transition: transform .55s cubic-bezier(.2,.8,.2,1), opacity .35s;
+    }
+    #spotlight.on { transform: translateX(0); opacity: 1; }
+    .sp-bar { width: 10px; background: var(--c); }
+    .sp-main { background: var(--plate); padding: 12px 26px 12px 20px; min-width: 420px; }
+    .sp-team { font-size: 16px; letter-spacing: 1.5px; color: var(--c); font-weight: 700; }
+    .sp-name { font-size: 44px; font-weight: 800; line-height: 1.05; }
+    .sp-mech { font-size: 17px; color: var(--dim); margin-top: 2px; }
+    .sp-stats { display: flex; background: var(--plate-2); }
+    .sp-stat { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 22px; min-width: 80px; }
+    .sp-stat + .sp-stat { border-left: 1px solid rgba(255,255,255,.08); }
+    .sp-stat .v { font-size: 34px; font-weight: 800; }
+    .sp-stat .l { font-size: 12px; color: var(--dim); letter-spacing: 1.5px; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+<div id="score" hidden>
+  <div class="sb-name a" id="sb-name-a"></div>
+  <div class="sb-wins a num" id="sb-wins-a">0</div>
+  <div class="sb-mid"><span class="label" id="sb-mid-label">Match</span><span class="value num" id="sb-mid-value">—</span></div>
+  <div class="sb-wins b num" id="sb-wins-b">0</div>
+  <div class="sb-name b" id="sb-name-b"></div>
+</div>
+
+<div id="last" hidden></div>
+
+<div id="leaders" hidden>
+  <h3>Series leaders</h3>
+  <div id="leaders-rows"></div>
+</div>
+
+<div id="spotlight">
+  <div class="sp-bar"></div>
+  <div class="sp-main">
+    <div class="sp-team" id="sp-team"></div>
+    <div class="sp-name" id="sp-name"></div>
+    <div class="sp-mech" id="sp-mech"></div>
+  </div>
+  <div class="sp-stats" id="sp-stats"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const params = new URLSearchParams(location.search);
+  const ALL = ['score', 'last', 'leaders', 'spotlight'];
+  const shown = new Set((params.get('show') || ALL.join(',')).split(',').map((s) => s.trim()));
+  const TEAM_COLOR = { A: 'var(--team-a)', B: 'var(--team-b)' };
+  const $ = (id) => document.getElementById(id);
+  const color = (team) => TEAM_COLOR[team] || 'var(--dim)';
+  let previous = {};
+
+  function setText(id, text) {
+    const node = $(id);
+    const value = String(text);
+    if (node.textContent !== value) {
+      const changed = node.textContent !== '';
+      node.textContent = value;
+      if (changed && node.classList.contains('num')) {
+        node.classList.remove('pop'); void node.offsetWidth; node.classList.add('pop');
+      }
+    }
+  }
+
+  function node(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+
+  function renderScore(data) {
+    $('score').hidden = !shown.has('score') || !data.series;
+    if ($('score').hidden) return;
+    setText('sb-name-a', data.teams.A.name);
+    setText('sb-name-b', data.teams.B.name);
+    setText('sb-wins-a', data.teams.A.wins);
+    setText('sb-wins-b', data.teams.B.wins);
+    const played = data.matches_played;
+    setText('sb-mid-label', played ? 'Next up' : 'Series');
+    setText('sb-mid-value', played ? `Match ${played + 1}` : 'Starting');
+  }
+
+  function renderLast(data) {
+    const last = data.last_match;
+    const box = $('last');
+    box.hidden = !shown.has('last') || !last;
+    if (box.hidden) return;
+    const key = JSON.stringify(last);
+    if (previous.last === key) return;
+    previous.last = key;
+
+    box.style.setProperty('--accent', color(last.winner));
+    const parts = [node('span', 'tag', `Match ${last.number}`)];
+    const where = [last.map, last.mode].filter(Boolean).join(' · ');
+    if (where) parts.push(node('span', null, where));
+    parts.push(node('span', 'sep'));
+    if (last.winner_name) {
+      const score = last.score && last.score.A !== undefined && last.score.B !== undefined
+        ? `  ${last.score[last.winner]}–${last.score[last.winner === 'A' ? 'B' : 'A']}` : '';
+      parts.push(node('span', 'win', `${last.winner_name} wins${score}`));
+    } else {
+      parts.push(node('span', 'win', 'No result'));
+    }
+    if (last.mvp) {
+      parts.push(node('span', 'sep'));
+      const mvp = node('span', 'mvp');
+      mvp.append(node('span', 'tag', 'MVP  '), node('b', null, last.mvp.username));
+      const line = [last.mvp.mech, `${last.mvp.damage.toLocaleString()} dmg`, `${last.mvp.kills} K`]
+        .filter(Boolean).join(' · ');
+      mvp.append(document.createTextNode(`  ${line}`));
+      parts.push(mvp);
+    }
+    box.replaceChildren(...parts);
+  }
+
+  function renderLeaders(data) {
+    const box = $('leaders');
+    box.hidden = !shown.has('leaders') || !data.leaders || !data.leaders.length;
+    if (box.hidden) return;
+    $('leaders-rows').replaceChildren(...data.leaders.map((l) => {
+      const row = node('div', 'ld-row');
+      row.style.setProperty('--c', color(l.team));
+      row.append(node('span', 'ld-label', l.label), node('span', 'ld-name', l.username), node('span', 'ld-value num', l.value));
+      return row;
+    }));
+  }
+
+  function renderSpotlight(data) {
+    const box = $('spotlight');
+    const sp = shown.has('spotlight') ? data.spotlight : null;
+    if (!sp) { box.classList.remove('on'); return; }
+
+    const key = JSON.stringify(sp);
+    if (previous.spotlight !== key) {
+      previous.spotlight = key;
+      box.style.setProperty('--c', color(sp.team));
+      $('sp-team').textContent = sp.team_name || '';
+      $('sp-name').textContent = sp.username;
+      $('sp-mech').textContent = sp.top_mech ? `Main mech: ${sp.top_mech}` : '';
+      const stats = [
+        ['Avg Dmg', sp.avg_damage.toLocaleString()],
+        ['Kills', sp.kills],
+        sp.solo_kills !== null ? ['Solo', sp.solo_kills] : null,
+        sp.survival_rate !== null ? ['Survival', `${Math.round(sp.survival_rate * 100)}%`] : null,
+        ['Drops', sp.matches],
+      ].filter(Boolean);
+      $('sp-stats').replaceChildren(...stats.map(([label, value]) => {
+        const s = node('div', 'sp-stat');
+        s.append(node('span', 'v num', value), node('span', 'l', label));
+        return s;
+      }));
+    }
+    box.classList.add('on');
+  }
+
+  async function tick() {
+    try {
+      const response = await fetch('/api/overlay', { cache: 'no-store' });
+      if (!response.ok) return;
+      const data = await response.json();
+      renderScore(data);
+      renderLast(data);
+      renderLeaders(data);
+      renderSpotlight(data);
+    } catch (_) {
+      // App restarting or briefly unreachable: keep the last frame on screen.
+    }
+  }
+
+  tick();
+  setInterval(tick, 2000);
+})();
+</script>
+</body>
+</html>

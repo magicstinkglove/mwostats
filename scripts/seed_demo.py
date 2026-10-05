@@ -45,7 +45,7 @@ def make_match(rng: random.Random, index: int, side_one: list[str], side_two: li
 
     users = []
     for side, roster in ((1, first), (2, second)):
-        for name in roster:
+        for slot, name in enumerate(roster):
             damage = max(0, int(rng.gauss(520, 200)))
             kills = min(4, max(0, int(damage / 320 + rng.random())))
             users.append(
@@ -59,7 +59,10 @@ def make_match(rng: random.Random, index: int, side_one: list[str], side_two: li
                     "MatchScore": int(damage * 0.55 + kills * 40 + rng.randint(0, 60)),
                     "IsSpectator": False,
                     "ComponentsDestroyed": rng.randint(0, 6),
-                    "HealthPercentage": rng.randint(0, 100),
+                    "HealthPercentage": rng.choice([0, 0, rng.randint(5, 100)]),
+                    "KillsMostDamage": rng.randint(0, kills),
+                    "TeamDamage": rng.choice([0, 0, 0, rng.randint(5, 60)]),
+                    "Lance": str(slot // 4 + 1),
                 }
             )
 

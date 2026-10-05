@@ -131,8 +131,20 @@ Once you see `Application startup complete`, open `http://localhost:8000`.
    their full profile. Not every player is tracked there — when that's the case, the section
    just doesn't appear.
 
+7. **Combat Detail** shows survival rate, solo kills (kills where that pilot did the most
+   damage), components destroyed, friendly fire and per-lance splits, when MWO's match data
+   includes those fields.
+
 You can keep multiple **series** (named groups of matches) — switch between them from the
 top-right switcher, or start a new one with **+ New series**.
+
+### Streaming (OBS overlay)
+
+Click **Caster** (top right) to open the caster controls. Copy the overlay URL into OBS as a
+**Browser** source at 1920 × 1080. It shows the series score, the last match's result and
+MVP, series leaders, and a player card you pop on and off from the caster page. It updates
+by itself as you add matches. Tick fewer boxes to get a URL with only some elements, so you
+can place them on different scenes.
 
 ---
 
@@ -319,8 +331,8 @@ Restart and the card appears on Summary and each team tab automatically. `Series
 
 Section builders in `app/metrics/base.py`: `stats_section`, `table_section`, `bar_section`,
 `line_section`, `note_section` — tables sort on click, line charts skip unplayed matches for
-free. Shipped modules: `core_aggregates`, `leaderboards`, `match_results`, `player_detail`,
-`breakdowns`.
+free. Shipped modules: `core_aggregates`, `leaderboards`, `comp_stats`, `match_results`,
+`player_detail`, `breakdowns`.
 
 ### Layout
 
@@ -337,11 +349,12 @@ app/
   normalize.py     raw API body -> Match / PlayerStat
   teams.py         co-occurrence inference          <- the core logic
   service.py       ingest, context assembly, token resolution, Jarl's List caching
+  overlay.py       broadcast overlay snapshot and caster state
   metrics/         auto-discovered metric modules
   routes/          matches, series, metrics, settings, players
-web/               index.html + app.js + modules.js + style.css (no build step)
+web/               index.html + app.js + modules.js + style.css, overlay.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             114 tests
+tests/             122 tests
 ```
 
 ### Caching
@@ -367,6 +380,8 @@ GET    /api/metrics/modules
 GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own page
 GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
+GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
+PUT    /api/overlay                            {series_id?, spotlight?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any
@@ -381,7 +396,7 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-114 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
+122 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
 disjoint groups), clan-tag auto-naming, normalization of partial/malformed payloads, metric
 values on summary and team-scoped views, the HTTP layer with the network mocked, token
 resolution/masking, Jarl's List caching (incl. the per-request-commit regression test), and a

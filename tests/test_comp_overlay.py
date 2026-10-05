@@ -1,0 +1,115 @@
+"""Combat Detail module (extra API fields) and the broadcast overlay endpoints."""
+
+from __future__ import annotations
+
+from app.metrics import get_module
+from app.metrics.base import SeriesContext
+from app.metrics.comp_stats import combat_totals
+from app.models import PlayerStat, Series
+from app.teams import infer_teams
+from tests.test_api import client, create_series  # noqa: F401  (fixture)
+from tests.test_metrics import build_matches
+
+
+def line(**extra) -> PlayerStat:
+    return PlayerStat(match_id="m", username="X", side=1, extra=extra)
+
+
+def test_combat_totals_tells_zero_from_not_reported():
+    totals = combat_totals([
+        line(HealthPercentage=0, KillsMostDamage=1, TeamDamage="12"),
+        line(HealthPercentage=40, KillsMostDamage=2),
+        line(),  # an older payload without the fields
+    ])
+    assert totals["reported"] == 2
+    assert totals["survived"] == 1
+    assert totals["survival_rate"] == 0.5
+    assert totals["avg_health"] == 20
+    assert totals["solo_kills"] == 3
+    assert totals["team_damage"] == 12
+    assert totals["components"] is None
+
+
+def _ctx_with_extras(extras_by_user):
+    matches = build_matches()
+    for match in matches:
+        for p in match.players:
+            p.extra = dict(extras_by_user.get(p.username, {}))
+    series = Series(id=1, name="T", team_a_name="Alpha", team_b_name="Bravo",
+                    match_ids=[m.match_id for m in matches])
+    return SeriesContext(series=series, matches=matches, inference=infer_teams(matches), match_overrides={})
+
+
+def test_comp_stats_awards_name_the_right_pilots():
+    ctx = _ctx_with_extras({
+        "Alice": {"HealthPercentage": 60, "KillsMostDamage": 2, "TeamDamage": 0, "Lance": "1"},
+        "Bob": {"HealthPercentage": 0, "KillsMostDamage": 0, "TeamDamage": 45, "Lance": "1"},
+        "Eve": {"HealthPercentage": 10, "KillsMostDamage": 1, "Lance": "2"},
+        "Fay": {"HealthPercentage": 0, "Lance": "2"},
+    })
+    sections = get_module("comp_stats").compute(ctx)["sections"]
+    awards = {s["label"]: s for s in sections[1]["groups"][0]["stats"]}
+    assert awards["Solo Kill King"]["name"] == "Alice"
+    assert awards["Solo Kill King"]["value"] == "4"
+    assert awards["Friendly Fire Award"]["name"] == "Bob"
+    assert awards["Last Mech Standing"]["name"] in {"Alice", "Eve"}  # both survived 2/2
+    assert sections[-1]["title"] == "By lance"
+
+
+def test_comp_stats_without_the_fields_is_a_note():
+    sections = get_module("comp_stats").compute(_ctx_with_extras({}))["sections"]
+    assert [s["type"] for s in sections] == ["note"]
+
+
+# ---------------------------------------------------------------- overlay
+
+
+def test_overlay_with_no_series(client):  # noqa: F811
+    body = client.get("/api/overlay").json()
+    assert body["series"] is None
+
+
+def test_overlay_follows_the_newest_series_and_scores_it(client):  # noqa: F811
+    create_series(client, "Old")
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2 m3"})
+
+    body = client.get("/api/overlay").json()
+    assert body["series"]["name"] == "League Night"
+    assert body["matches_played"] == 3
+    wins = sorted(t["wins"] for t in body["teams"].values())
+    assert sum(wins) == 3
+    assert body["last_match"]["number"] == 3
+    assert body["last_match"]["mvp"]["username"]
+    assert body["leaders"]
+
+
+def test_overlay_spotlight_and_pinned_series(client):  # noqa: F811
+    first = create_series(client, "First")
+    client.post(f"/api/series/{first['id']}/matches", json={"match_ids": "m1 m2"})
+    create_series(client, "Second")
+
+    body = client.put("/api/overlay", json={"series_id": first["id"], "spotlight": "Alice"}).json()
+    assert body["series"]["name"] == "First"
+    assert body["spotlight"]["username"] == "Alice"
+    assert body["spotlight"]["matches"] == 2
+
+    # Changing only the spotlight leaves the pinned series alone.
+    body = client.put("/api/overlay", json={"spotlight": None}).json()
+    assert body["spotlight"] is None
+    assert body["state"]["series_id"] == first["id"]
+
+    # Switching series clears a spotlight from the old one.
+    client.put("/api/overlay", json={"spotlight": "Alice"})
+    body = client.put("/api/overlay", json={"series_id": None}).json()
+    assert body["series"]["name"] == "Second"
+    assert body["state"]["spotlight"] is None
+
+
+def test_overlay_rejects_unknown_series(client):  # noqa: F811
+    assert client.put("/api/overlay", json={"series_id": 999}).status_code == 404
+
+
+def test_overlay_and_caster_pages_are_served(client):  # noqa: F811
+    assert "OBS" in client.get("/overlay").text
+    assert "Caster Controls" in client.get("/caster").text
