@@ -19,6 +19,7 @@ class OverlayStateRequest(BaseModel):
     # the newest series, spotlight null = hide the player card).
     series_id: int | None = None
     spotlight: str | None = None
+    sidebars: bool | None = None  # both teams' player stats down the screen edges
     # Overlay-only names for the live series, e.g. {"A": "Emperors"}; blank/null
     # reverts that team to its name in the app.
     team_names: dict[str, str | None] | None = None
@@ -32,6 +33,8 @@ def overlay(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
 @router.put("")
 def update_overlay(payload: OverlayStateRequest, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     changes = {k: getattr(payload, k) for k in payload.model_fields_set if k != "team_names"}
+    if "sidebars" in changes:
+        changes["sidebars"] = bool(changes["sidebars"])
     if changes.get("series_id") is not None and get_series(conn, changes["series_id"]) is None:
         raise HTTPException(status_code=404, detail=f"Series {changes['series_id']} not found.")
     if isinstance(changes.get("spotlight"), str):

@@ -137,3 +137,21 @@ def test_overlay_team_names_change_only_the_overlay(client):  # noqa: F811
     client.put("/api/overlay", json={"series_id": series["id"]})
     body = client.put("/api/overlay", json={"team_names": {"A": None}}).json()
     assert body["teams"]["A"]["name"] == "[EmP] Emperors"
+
+
+def test_overlay_sidebars_toggle_and_list_each_team(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+
+    body = client.get("/api/overlay").json()
+    assert body["state"]["sidebars"] is False
+    names = {p["username"] for team in ("A", "B") for p in body["sidebars"][team]}
+    assert names == {"Alice", "Bob", "Cid", "Eve", "Fay", "Gus"}
+    for pilots in body["sidebars"].values():
+        damage = [p["avg_damage"] for p in pilots]
+        assert damage == sorted(damage, reverse=True)
+
+    assert client.put("/api/overlay", json={"sidebars": True}).json()["state"]["sidebars"] is True
+    # Other changes leave the toggle alone.
+    assert client.put("/api/overlay", json={"spotlight": "Alice"}).json()["state"]["sidebars"] is True
+    assert client.put("/api/overlay", json={"sidebars": False}).json()["state"]["sidebars"] is False

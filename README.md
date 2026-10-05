@@ -142,7 +142,8 @@ top-right switcher, or start a new one with **+ New series**.
 
 Click **Caster** (top right) to open the caster controls. Copy the overlay URL into OBS as a
 **Browser** source at 1920 × 1080. It shows the series score, the last match's result and
-MVP, series leaders, and a player card you pop on and off from the caster page. It updates
+MVP, series leaders, and a player card and team stat sidebars you pop on and off from the
+caster page. It updates
 by itself as you add matches. The caster page can also set team names for the overlay only
 (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats. Tick fewer boxes to get a URL with only some elements, so you
 can place them on different scenes.
@@ -382,7 +383,7 @@ GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own pag
 GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
-PUT    /api/overlay                            {series_id?, spotlight?, team_names?}; null series = newest
+PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any

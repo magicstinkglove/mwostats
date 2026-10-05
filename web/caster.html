@@ -70,6 +70,16 @@
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Team sidebars</h2>
+      <button id="sidebars-btn" class="btn">Show player stats on sides</button>
+    </div>
+    <div class="panel-body">
+      <p class="hint" style="margin:0">Slides each team's pilots in down the left and right edges with avg damage, kills and survival. The series leaders box hides while they're up.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Player spotlight</h2>
       <button id="clear-spot" class="btn btn-ghost">Hide card (Esc)</button>
     </div>
@@ -90,6 +100,7 @@
         <label class="checkbox"><input type="checkbox" value="last" checked> Last match result</label>
         <label class="checkbox"><input type="checkbox" value="leaders" checked> Series leaders</label>
         <label class="checkbox"><input type="checkbox" value="spotlight" checked> Player spotlight</label>
+        <label class="checkbox"><input type="checkbox" value="sidebars" checked> Team sidebars</label>
       </div>
       <div class="url-box">
         <input id="overlay-url" readonly>
@@ -143,6 +154,9 @@
   function render() {
     if (!snap) return;
     $('series-select').value = snap.state.series_id === null ? '' : String(snap.state.series_id);
+    const sidebarsOn = Boolean(snap.state.sidebars);
+    $('sidebars-btn').textContent = sidebarsOn ? 'Hide player stats' : 'Show player stats on sides';
+    $('sidebars-btn').className = sidebarsOn ? 'btn btn-primary' : 'btn';
     $('live-pill').textContent = snap.series
       ? `${snap.series.name} · ${snap.teams.A.wins}–${snap.teams.B.wins}` : 'No series yet';
 
@@ -170,7 +184,7 @@
   function overlayUrl() {
     const picked = [...document.querySelectorAll('#show-opts input:checked')].map((i) => i.value);
     const base = `${location.origin}/overlay`;
-    return picked.length === 4 ? base : `${base}?show=${picked.join(',')}`;
+    return picked.length === 5 ? base : `${base}?show=${picked.join(',')}`;
   }
 
   function refreshUrl() {
@@ -189,6 +203,7 @@
     input.onchange = () => update({ team_names: { [input.dataset.team]: input.value } });
     input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); };
   }
+  $('sidebars-btn').onclick = () => update({ sidebars: !(snap && snap.state.sidebars) });
   $('clear-spot').onclick = () => update({ spotlight: null });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
   $('show-opts').onchange = refreshUrl;

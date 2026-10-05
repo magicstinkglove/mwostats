@@ -36,6 +36,7 @@ def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
         "series_id": state.get("series_id"),
         "spotlight": state.get("spotlight"),
         "team_names": state.get("team_names") or {},
+        "sidebars": bool(state.get("sidebars")),
     }
 
 
@@ -173,6 +174,27 @@ def _spotlight(ctx: SeriesContext, username: str | None) -> dict[str, Any] | Non
     }
 
 
+def _sidebars(ctx: SeriesContext) -> dict[str, list[dict[str, Any]]]:
+    """Each team's pilots with their series numbers, best average damage first."""
+    by_player = ctx.stats_by_player()
+    sides: dict[str, list[dict[str, Any]]] = {TEAM_A: [], TEAM_B: []}
+    for username, lines in by_player.items():
+        team = ctx.player_team(username)
+        if team not in sides:
+            continue
+        combat = combat_totals(lines)
+        sides[team].append({
+            "username": username,
+            "matches": len(lines),
+            "avg_damage": round(mean([s.damage for s in lines])),
+            "kills": sum(s.kills for s in lines),
+            "survival_rate": combat["survival_rate"],
+        })
+    for pilots in sides.values():
+        pilots.sort(key=lambda p: (-p["avg_damage"], p["username"].lower()))
+    return sides
+
+
 def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
     """Everything the overlay draws, in one poll."""
     state = get_state(conn)
@@ -208,6 +230,7 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         "last_match": _last_match(ctx),
         "leaders": _leaders(ctx),
         "spotlight": _spotlight(ctx, state["spotlight"]),
+        "sidebars": _sidebars(ctx),
         "rosters": {
             team: [a.username for a in ctx.inference.roster(team)] for team in (TEAM_A, TEAM_B)
         },

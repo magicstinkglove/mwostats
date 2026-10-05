@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <title>MWO Overlay</title>
-  <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,leaders,spotlight
-       (default: all). Driven from /caster; polls the app every 2s. -->
+  <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,leaders,spotlight,sidebars
+       (default: all). Spotlight and sidebars appear only when switched on from /caster; polls the app every 2s. -->
   <style>
     :root {
       --team-a: #f0a04b;
@@ -72,6 +72,26 @@
     .ld-name { font-size: 19px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ld-value { font-size: 22px; font-weight: 800; }
 
+    /* ---------------------------------------------------- team sidebars */
+    .sidebar {
+      position: absolute; top: 170px; width: 330px; background: var(--plate);
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
+      opacity: 0; transition: transform .55s cubic-bezier(.2,.8,.2,1), opacity .35s;
+    }
+    #side-a { left: 0; border-left: 6px solid var(--team-a); transform: translateX(-110%); }
+    #side-b { right: 0; border-right: 6px solid var(--team-b); transform: translateX(110%); }
+    #side-a.on, #side-b.on { transform: translateX(0); opacity: 1; }
+    .sd-head, .sd-row { display: grid; grid-template-columns: 1fr 62px 40px 58px; align-items: center; gap: 6px; padding: 0 14px; }
+    .sd-head { padding-top: 9px; padding-bottom: 9px; background: var(--plate-2); }
+    .sd-team { font-size: 19px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #side-a .sd-team { color: var(--team-a); }
+    #side-b .sd-team { color: var(--team-b); }
+    .sd-col { font-size: 11px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; text-align: right; }
+    .sd-row { height: 42px; }
+    .sd-row + .sd-row { border-top: 1px solid rgba(255,255,255,.07); }
+    .sd-name { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sd-v { font-size: 18px; font-weight: 700; text-align: right; }
+
     /* ---------------------------------------------------- spotlight lower third */
     #spotlight {
       position: absolute; left: 60px; bottom: 70px; display: flex; align-items: stretch;
@@ -108,6 +128,9 @@
   <div id="leaders-rows"></div>
 </div>
 
+<div class="sidebar" id="side-a"></div>
+<div class="sidebar" id="side-b"></div>
+
 <div id="spotlight">
   <div class="sp-bar"></div>
   <div class="sp-main">
@@ -123,7 +146,7 @@
   'use strict';
 
   const params = new URLSearchParams(location.search);
-  const ALL = ['score', 'last', 'leaders', 'spotlight'];
+  const ALL = ['score', 'last', 'leaders', 'spotlight', 'sidebars'];
   const shown = new Set((params.get('show') || ALL.join(',')).split(',').map((s) => s.trim()));
   const TEAM_COLOR = { A: 'var(--team-a)', B: 'var(--team-b)' };
   const $ = (id) => document.getElementById(id);
@@ -194,9 +217,38 @@
     box.replaceChildren(...parts);
   }
 
+  const sidebarsOn = (data) => shown.has('sidebars') && data.series && data.state.sidebars;
+
+  function renderSidebars(data) {
+    const on = sidebarsOn(data);
+    for (const team of ['A', 'B']) {
+      const box = $(`side-${team.toLowerCase()}`);
+      if (!on) { box.classList.remove('on'); continue; }
+      const pilots = data.sidebars[team] || [];
+      const key = JSON.stringify([data.teams[team].name, pilots]);
+      if (previous[`side${team}`] !== key) {
+        previous[`side${team}`] = key;
+        const showSurv = pilots.some((p) => p.survival_rate !== null);
+        const head = node('div', 'sd-head');
+        head.append(node('span', 'sd-team', data.teams[team].name), node('span', 'sd-col', 'Avg Dmg'),
+          node('span', 'sd-col', 'K'), node('span', 'sd-col', showSurv ? 'Surv' : ''));
+        const rows = pilots.map((p) => {
+          const row = node('div', 'sd-row');
+          row.append(node('span', 'sd-name', p.username), node('span', 'sd-v num', p.avg_damage.toLocaleString()),
+            node('span', 'sd-v num', p.kills),
+            node('span', 'sd-v num', p.survival_rate === null ? '' : `${Math.round(p.survival_rate * 100)}%`));
+          return row;
+        });
+        box.replaceChildren(head, ...rows);
+      }
+      box.classList.add('on');
+    }
+  }
+
   function renderLeaders(data) {
     const box = $('leaders');
-    box.hidden = !shown.has('leaders') || !data.leaders || !data.leaders.length;
+    // The sidebars already carry everyone's numbers, and the right one sits where this box does.
+    box.hidden = !shown.has('leaders') || !data.leaders || !data.leaders.length || sidebarsOn(data);
     if (box.hidden) return;
     $('leaders-rows').replaceChildren(...data.leaders.map((l) => {
       const row = node('div', 'ld-row');
@@ -242,6 +294,7 @@
       renderScore(data);
       renderLast(data);
       renderLeaders(data);
+      renderSidebars(data);
       renderSpotlight(data);
     } catch (_) {
       // App restarting or briefly unreachable: keep the last frame on screen.
