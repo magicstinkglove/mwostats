@@ -6,6 +6,9 @@
   <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,maps,leaders,spotlight,sidebars
        (default: all). Spotlight and sidebars appear only when switched on from /caster; polls the app every 2s. -->
   <style>
+    /* Laid out at 1920x1080 and scaled to the source size (see fit() below), so any OBS
+       browser-source size or canvas resolution shows the whole layout. */
+    body { transform-origin: 0 0; }
     :root {
       --team-a: #f0a04b;
       --team-b: #58b6dd;
@@ -15,7 +18,7 @@
       --plate-2: rgba(22, 28, 36, 0.92);
       --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
     }
-    html, body { margin: 0; background: transparent; overflow: hidden; }
+    html, body { margin: 0 !important; background: transparent; overflow: hidden; }
     body { width: 1920px; height: 1080px; position: relative; font-family: var(--font); color: var(--ink); }
     [hidden] { display: none !important; }
     .num { font-variant-numeric: tabular-nums; }
@@ -167,6 +170,13 @@
 <script>
 (function () {
   'use strict';
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1;
+    document.body.style.transform = scale === 1 ? '' : `scale(${scale})`;
+  }
+  fit();
+  window.addEventListener('resize', fit);
 
   const params = new URLSearchParams(location.search);
   const ALL = ['score', 'last', 'maps', 'leaders', 'spotlight', 'sidebars'];

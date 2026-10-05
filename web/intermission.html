@@ -7,6 +7,9 @@
        Rotates recap -> head to head -> players -> awards every ?rotate= seconds (default 15),
        unless a page is pinned from /caster. Polls the app every 3s. -->
   <style>
+    /* Laid out at 1920x1080 and scaled to the source size (see fit() below), so any OBS
+       browser-source size or canvas resolution shows the whole layout. */
+    body { transform-origin: 0 0; }
     :root {
       --team-a: #f0a04b;
       --team-b: #58b6dd;
@@ -20,7 +23,7 @@
       --bad: #f85149;
       --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
     }
-    html, body { margin: 0; overflow: hidden; }
+    html, body { margin: 0 !important; overflow: hidden; }
     body {
       width: 1920px; height: 1080px; position: relative; font-family: var(--font); color: var(--ink);
       background:
@@ -35,7 +38,7 @@
     /* ---------------------------------------------------- header */
     header {
       position: absolute; top: 0; left: 0; right: 0; height: 150px;
-      display: grid; grid-template-columns: 1fr 120px 360px 120px 1fr; align-items: center;
+      display: grid; grid-template-columns: 1fr 120px 560px 120px 1fr; align-items: center;
       background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.15));
       border-bottom: 1px solid var(--faint);
     }
@@ -46,7 +49,7 @@
     .h-wins.b { background: var(--team-b); clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%); }
     .h-mid { text-align: center; line-height: 1.15; }
     .h-mid .t1 { font-size: 16px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); }
-    .h-mid .t2 { font-size: 34px; font-weight: 700; }
+    .h-mid .t2 { font-size: 34px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .h-mid .t3 { font-size: 16px; color: var(--dim); margin-top: 2px; }
 
     /* ---------------------------------------------------- pages */
@@ -156,6 +159,13 @@
 <script>
 (function () {
   'use strict';
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1;
+    document.body.style.transform = scale === 1 ? '' : `scale(${scale})`;
+  }
+  fit();
+  window.addEventListener('resize', fit);
 
   const params = new URLSearchParams(location.search);
   const ROTATE_MS = Math.max(5, Number(params.get('rotate')) || 15) * 1000;
