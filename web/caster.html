@@ -30,6 +30,8 @@
       background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
     }
     .url-box input { font-family: var(--mono); font-size: 12px; }
+    .page-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .page-btns .btn.active { background: var(--team-a); border-color: var(--team-a); color: #1a1205; font-weight: 600; }
     .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
     @media (max-width: 800px) { .cast-grid { grid-template-columns: 1fr; } }
   </style>
@@ -110,6 +112,25 @@
       <div class="preview" id="preview" style="margin-top:14px"><iframe id="preview-frame" title="Overlay preview"></iframe></div>
     </div>
   </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Between-games scene</h2></div>
+    <div class="panel-body">
+      <div class="page-btns" id="page-btns">
+        <button class="btn" data-page="">Rotate all</button>
+        <button class="btn" data-page="recap">Last match</button>
+        <button class="btn" data-page="teams">Head to head</button>
+        <button class="btn" data-page="players">Pilots</button>
+        <button class="btn" data-page="awards">Awards</button>
+      </div>
+      <div class="url-box">
+        <input id="inter-url" readonly>
+        <button id="copy-inter" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint">A full-screen stats breakdown for a separate OBS scene to cut to between games. It rotates through the pages every 15 seconds (add <code>?rotate=20</code> to change that), or pick a page above to hold it.</p>
+      <div class="preview" id="inter-preview" style="margin-top:14px"><iframe id="inter-frame" title="Between-games preview"></iframe></div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -154,6 +175,9 @@
   function render() {
     if (!snap) return;
     $('series-select').value = snap.state.series_id === null ? '' : String(snap.state.series_id);
+    for (const btn of document.querySelectorAll('#page-btns .btn')) {
+      btn.classList.toggle('active', (btn.dataset.page || null) === (snap.state.intermission_page || null));
+    }
     const sidebarsOn = Boolean(snap.state.sidebars);
     $('sidebars-btn').textContent = sidebarsOn ? 'Hide player stats' : 'Show player stats on sides';
     $('sidebars-btn').className = sidebarsOn ? 'btn btn-primary' : 'btn';
@@ -194,8 +218,9 @@
   }
 
   function fitPreview() {
-    const scale = $('preview').clientWidth / 1920;
-    $('preview-frame').style.transform = `scale(${scale})`;
+    for (const [box, frame] of [['preview', 'preview-frame'], ['inter-preview', 'inter-frame']]) {
+      $(frame).style.transform = `scale(${$(box).clientWidth / 1920})`;
+    }
   }
 
   $('series-select').onchange = (e) => update({ series_id: e.target.value ? Number(e.target.value) : null });
@@ -207,11 +232,18 @@
   $('clear-spot').onclick = () => update({ spotlight: null });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
   $('show-opts').onchange = refreshUrl;
-  $('copy-url').onclick = async () => {
-    try { await navigator.clipboard.writeText($('overlay-url').value); $('copy-url').textContent = 'Copied'; }
-    catch (_) { $('overlay-url').select(); }
-    setTimeout(() => { $('copy-url').textContent = 'Copy'; }, 1500);
-  };
+  function copyButton(buttonId, inputId) {
+    $(buttonId).onclick = async () => {
+      try { await navigator.clipboard.writeText($(inputId).value); $(buttonId).textContent = 'Copied'; }
+      catch (_) { $(inputId).select(); }
+      setTimeout(() => { $(buttonId).textContent = 'Copy'; }, 1500);
+    };
+  }
+  copyButton('copy-url', 'overlay-url');
+  copyButton('copy-inter', 'inter-url');
+  for (const btn of document.querySelectorAll('#page-btns .btn')) {
+    btn.onclick = () => update({ intermission_page: btn.dataset.page || null });
+  }
   window.addEventListener('resize', fitPreview);
 
   async function poll() {
@@ -221,6 +253,8 @@
   (async function boot() {
     try { await loadSeries(); } catch (err) { banner(err.message); }
     refreshUrl();
+    $('inter-url').value = `${location.origin}/intermission`;
+    $('inter-frame').src = '/intermission';
     fitPreview();
     await poll();
     // Rosters and the score move as matches are added in the main app.

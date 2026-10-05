@@ -37,6 +37,7 @@ def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
         "spotlight": state.get("spotlight"),
         "team_names": state.get("team_names") or {},
         "sidebars": bool(state.get("sidebars")),
+        "intermission_page": state.get("intermission_page"),
     }
 
 
@@ -195,16 +196,18 @@ def _sidebars(ctx: SeriesContext) -> dict[str, list[dict[str, Any]]]:
     return sides
 
 
-def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
-    """Everything the overlay draws, in one poll."""
+def live_context(conn: sqlite3.Connection):
+    """(state, ctx, app_names, overrides) for the live series; ctx is None without one.
+
+    The overlay-only team names are swapped into ctx so every team_name() call uses
+    them, without touching the series itself (the stats pages keep the real names).
+    """
     state = get_state(conn)
     series_id = _live_series_id(conn, state)
     ctx = build_context(conn, series_id) if series_id is not None else None
     if ctx is None:
-        return {"state": state, "series": None}
+        return state, None, {}, {}
 
-    # Swap the overlay names into the context so every team_name() below uses them,
-    # without touching the series itself (the stats pages keep the real names).
     app_names = {TEAM_A: ctx.series.team_a_name, TEAM_B: ctx.series.team_b_name}
     overrides = state["team_names"].get(str(ctx.series.id), {})
     ctx.series = dataclasses.replace(
@@ -212,6 +215,14 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         team_a_name=overrides.get(TEAM_A) or app_names[TEAM_A],
         team_b_name=overrides.get(TEAM_B) or app_names[TEAM_B],
     )
+    return state, ctx, app_names, overrides
+
+
+def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Everything the overlay draws, in one poll."""
+    state, ctx, app_names, overrides = live_context(conn)
+    if ctx is None:
+        return {"state": state, "series": None}
 
     record = ctx.team_record()
     return {

@@ -71,6 +71,12 @@ def overlay_page() -> FileResponse:
     return FileResponse(WEB_DIR / "overlay.html")
 
 
+@app.get("/intermission")
+def intermission_page() -> FileResponse:
+    """Full-screen between-games scene for OBS."""
+    return FileResponse(WEB_DIR / "intermission.html")
+
+
 @app.get("/caster")
 def caster_page() -> FileResponse:
     """Caster controls for the overlay: live series and player spotlight."""

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MWO Between Games</title>
+  <!-- OBS browser source for a between-games scene: 1920x1080, full screen.
+       Rotates recap -> head to head -> players -> awards every ?rotate= seconds (default 15),
+       unless a page is pinned from /caster. Polls the app every 3s. -->
+  <style>
+    :root {
+      --team-a: #f0a04b;
+      --team-b: #58b6dd;
+      --ink: #f4f6f8;
+      --dim: #9aa4b0;
+      --faint: rgba(255,255,255,.07);
+      --bg: #0b0f14;
+      --card: #131a22;
+      --card-2: #18212b;
+      --good: #3fb950;
+      --bad: #f85149;
+      --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    }
+    html, body { margin: 0; overflow: hidden; }
+    body {
+      width: 1920px; height: 1080px; position: relative; font-family: var(--font); color: var(--ink);
+      background:
+        radial-gradient(1200px 700px at 0% 0%, rgba(240,160,75,.10), transparent 60%),
+        radial-gradient(1200px 700px at 100% 100%, rgba(88,182,221,.10), transparent 60%),
+        repeating-linear-gradient(135deg, rgba(255,255,255,.015) 0 2px, transparent 2px 14px),
+        var(--bg);
+    }
+    .num { font-variant-numeric: tabular-nums; }
+    .a { color: var(--team-a); } .b { color: var(--team-b); }
+
+    /* ---------------------------------------------------- header */
+    header {
+      position: absolute; top: 0; left: 0; right: 0; height: 150px;
+      display: grid; grid-template-columns: 1fr 120px 360px 120px 1fr; align-items: center;
+      background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.15));
+      border-bottom: 1px solid var(--faint);
+    }
+    .h-name { font-size: 46px; font-weight: 800; padding: 0 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .h-name.a { text-align: right; }
+    .h-wins { display: grid; place-items: center; height: 96px; font-size: 64px; font-weight: 800; color: #0d1218; }
+    .h-wins.a { background: var(--team-a); clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%); }
+    .h-wins.b { background: var(--team-b); clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%); }
+    .h-mid { text-align: center; line-height: 1.15; }
+    .h-mid .t1 { font-size: 16px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); }
+    .h-mid .t2 { font-size: 34px; font-weight: 700; }
+    .h-mid .t3 { font-size: 16px; color: var(--dim); margin-top: 2px; }
+
+    /* ---------------------------------------------------- pages */
+    main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; }
+    .page { position: absolute; inset: 0; opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; pointer-events: none; }
+    .page.on { opacity: 1; transform: none; }
+    .page-title { font-size: 20px; letter-spacing: 5px; text-transform: uppercase; color: var(--dim); margin: 0 0 18px; }
+    .page-title b { color: var(--ink); letter-spacing: 1px; font-size: 30px; text-transform: none; margin-right: 18px; }
+
+    .card { background: var(--card); border: 1px solid var(--faint); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 34px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 14px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); text-align: right; padding: 12px 14px; background: var(--card-2); }
+    td { font-size: 22px; padding: 0 14px; height: 50px; text-align: right; border-top: 1px solid var(--faint); }
+    th:first-child, td:first-child { text-align: left; }
+    td.name { font-weight: 700; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    td.mech { color: var(--dim); font-size: 18px; text-align: left; white-space: nowrap; }
+    td.dead { color: var(--bad); } td.alive { color: var(--good); }
+    .tbl-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px; font-size: 26px; font-weight: 800; border-left: 8px solid var(--c); }
+    .tbl-head .tag { font-size: 15px; font-weight: 600; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; margin-left: auto; }
+
+    /* recap */
+    .mvp {
+      display: flex; align-items: center; gap: 30px; padding: 18px 26px; margin-bottom: 26px;
+      border-left: 10px solid var(--c);
+    }
+    .mvp .label { font-size: 16px; letter-spacing: 4px; color: var(--dim); }
+    .mvp .who { font-size: 44px; font-weight: 800; }
+    .mvp .line { font-size: 22px; color: var(--dim); }
+    .mvp .stats { margin-left: auto; display: flex; gap: 40px; }
+    .mvp .stat { text-align: center; } .mvp .stat .v { font-size: 42px; font-weight: 800; } .mvp .stat .l { font-size: 13px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+
+    /* head to head */
+    .h2h { display: grid; grid-template-columns: 1.25fr 1fr; gap: 40px; }
+    .bar-row { display: grid; grid-template-columns: 90px 1fr 240px 1fr 90px; align-items: center; gap: 14px; height: 70px; border-top: 1px solid var(--faint); padding: 0 20px; }
+    .bar-row:first-of-type { border-top: 0; }
+    .bar-v { font-size: 28px; font-weight: 800; }
+    .bar-v.a { text-align: right; }
+    .bar-label { text-align: center; font-size: 17px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); }
+    .bar-track { height: 16px; background: var(--faint); position: relative; }
+    .bar-fill { position: absolute; top: 0; bottom: 0; transition: width 1s cubic-bezier(.2,.8,.2,1); }
+    .bar-track.a .bar-fill { right: 0; background: var(--team-a); }
+    .bar-track.b .bar-fill { left: 0; background: var(--team-b); }
+    .bar-row .edge { font-size: 14px; color: var(--good); }
+    .hist td { font-size: 20px; height: 54px; }
+    .hist th, .hist td { text-align: left; }
+    .hist .r, .hist th:nth-child(5) { text-align: right; }
+    .chip { display: inline-block; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 3px 10px; font-weight: 700; color: #0d1218; font-size: 17px; }
+    .chip.a { background: var(--team-a); } .chip.b { background: var(--team-b); }
+
+    /* players */
+    .players td { font-size: 20px; height: 48px; }
+    .players th { font-size: 13px; padding: 10px 10px; }
+    .players td { padding: 0 10px; }
+
+    /* awards */
+    .awards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .award { padding: 22px 26px; border-top: 6px solid var(--c); min-height: 170px; box-sizing: border-box; }
+    .award .t { font-size: 17px; letter-spacing: 3px; text-transform: uppercase; color: var(--c); font-weight: 700; }
+    .award .v { font-size: 56px; font-weight: 800; margin-top: 6px; line-height: 1; }
+    .award .w { font-size: 30px; font-weight: 700; margin-top: 10px; }
+    .award .d { font-size: 17px; color: var(--dim); margin-top: 4px; }
+
+    .empty { display: grid; place-items: center; height: 100%; font-size: 32px; color: var(--dim); }
+
+    /* ---------------------------------------------------- footer: page dots + timer */
+    footer { position: absolute; left: 70px; right: 70px; bottom: 40px; display: flex; align-items: center; gap: 26px; }
+    .dot { font-size: 16px; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); opacity: .55; }
+    .dot.on { color: var(--ink); opacity: 1; }
+    .timer { flex: 1; height: 3px; background: var(--faint); position: relative; }
+    .timer i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); opacity: .6; width: 0; }
+    .brand { font-size: 15px; color: var(--dim); letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="h-name a" id="h-name-a"></div>
+  <div class="h-wins a num" id="h-wins-a">0</div>
+  <div class="h-mid">
+    <div class="t1">Between games</div>
+    <div class="t2" id="h-next">—</div>
+    <div class="t3" id="h-series"></div>
+  </div>
+  <div class="h-wins b num" id="h-wins-b">0</div>
+  <div class="h-name b" id="h-name-b"></div>
+</header>
+
+<main>
+  <section class="page" id="page-recap"></section>
+  <section class="page" id="page-teams"></section>
+  <section class="page" id="page-players"></section>
+  <section class="page" id="page-awards"></section>
+</main>
+
+<footer>
+  <span class="dot" data-page="recap">Last match</span>
+  <span class="dot" data-page="teams">Head to head</span>
+  <span class="dot" data-page="players">Pilots</span>
+  <span class="dot" data-page="awards">Awards</span>
+  <div class="timer"><i id="timer"></i></div>
+  <span class="brand">MWO MATCH STATS</span>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  const params = new URLSearchParams(location.search);
+  const ROTATE_MS = Math.max(5, Number(params.get('rotate')) || 15) * 1000;
+  const $ = (id) => document.getElementById(id);
+  const cls = (team) => (team === 'A' ? 'a' : team === 'B' ? 'b' : '');
+  const color = (team) => (team === 'A' ? 'var(--team-a)' : team === 'B' ? 'var(--team-b)' : 'var(--dim)');
+  const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
+  const n = (v) => (v === null || v === undefined ? '—' : Math.round(v).toLocaleString());
+
+  let data = null;
+  let rendered = {};
+  let current = null;
+  let shownAt = 0;
+
+  function h(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') node.className = v;
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'style') node.setAttribute('style', v);
+      else node.setAttribute(k, v);
+    }
+    for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c);
+    return node;
+  }
+
+  function table(columns, rows) {
+    return h('table', {},
+      h('thead', {}, h('tr', {}, columns.map((c) => h('th', { text: c, style: /^Mechs?$/.test(c) ? 'text-align:left' : null })))),
+      h('tbody', {}, rows));
+  }
+
+  /* -------------------------------------------------------------- pages */
+
+  function recapPage(d) {
+    const last = d.last_match;
+    if (!last) return null;
+    const where = [last.map, last.mode].filter(Boolean).join(' · ');
+    const winner = last.winner;
+    const score = last.score && winner && last.score[winner] !== undefined
+      ? `${last.score[winner]}–${last.score[winner === 'A' ? 'B' : 'A']}` : '';
+    const title = h('h2', { class: 'page-title' },
+      h('b', { text: `Match ${last.number}` }), `${where}${winner ? ` · ${last.winner_name} wins ${score}` : ''}`);
+
+    const mvp = last.mvp ? h('div', { class: 'card mvp', style: `--c:${color(last.mvp.team)}` },
+      h('div', {}, h('div', { class: 'label', text: 'MATCH MVP' }),
+        h('div', { class: 'who', text: last.mvp.username }),
+        h('div', { class: 'line', text: [d.teams[last.mvp.team] && d.teams[last.mvp.team].name, last.mvp.mech].filter(Boolean).join(' · ') })),
+      h('div', { class: 'stats' },
+        [['Damage', n(last.mvp.damage)], ['Kills', last.mvp.kills], ['Assists', last.mvp.assists]]
+          .map(([l, v]) => h('div', { class: 'stat' }, h('div', { class: 'v num', text: v }), h('div', { class: 'l', text: l }))))) : null;
+
+    const box = ['A', 'B'].map((team) => {
+      const rows = (last.box_score[team] || []);
+      const hasSolo = rows.some((r) => r.solo_kills !== null);
+      const hasHp = rows.some((r) => r.health !== null);
+      const cols = ['Pilot', 'Mech', 'Dmg', 'K', 'A'].concat(hasSolo ? ['Solo'] : [], hasHp ? ['HP'] : []);
+      return h('div', { class: 'card' },
+        h('div', { class: 'tbl-head', style: `--c:${color(team)}` }, h('span', { class: cls(team), text: d.teams[team].name }),
+          h('span', { class: 'tag', text: winner === team ? 'Winner' : '' })),
+        table(cols, rows.map((r) => h('tr', {},
+          h('td', { class: 'name', text: r.username }), h('td', { class: 'mech', text: r.mech || '' }),
+          h('td', { class: 'num', text: n(r.damage) }), h('td', { class: 'num', text: r.kills }), h('td', { class: 'num', text: r.assists }),
+          hasSolo ? h('td', { class: 'num', text: n(r.solo_kills) }) : null,
+          hasHp ? h('td', { class: `num ${r.survived ? 'alive' : 'dead'}`, text: r.survived ? `${Math.round(r.health)}%` : 'KO' }) : null))));
+    });
+    return [title, mvp, h('div', { class: 'two' }, box)];
+  }
+
+  function teamsPage(d) {
+    if (!d.comparison.length) return null;
+    const bars = d.comparison.map((row) => {
+      const a = row.A || 0, b = row.B || 0;
+      const max = Math.max(a, b) || 1;
+      const better = a === b ? null : ((a > b) !== row.lower_is_better ? 'A' : 'B');
+      return h('div', { class: 'bar-row' },
+        h('span', { class: 'bar-v a num', text: row.A_text, style: better === 'A' ? '' : 'opacity:.75' }),
+        h('div', { class: 'bar-track a' }, h('div', { class: 'bar-fill', style: `width:${(a / max) * 100}%` })),
+        h('span', { class: 'bar-label', text: row.label }),
+        h('div', { class: 'bar-track b' }, h('div', { class: 'bar-fill', style: `width:${(b / max) * 100}%` })),
+        h('span', { class: 'bar-v b num', text: row.B_text, style: better === 'B' ? '' : 'opacity:.75' }));
+    });
+    const hist = d.history.slice(-9).map((m) => h('tr', {},
+      h('td', { class: 'num', text: m.number }),
+      h('td', { class: 'name', text: m.map || '—' }),
+      h('td', { class: 'mech', text: m.mode || '' }),
+      h('td', {}, m.winner ? h('span', { class: `chip ${cls(m.winner)}`, text: d.teams[m.winner].name }) : '—'),
+      h('td', { class: 'num r', text: m.score && m.score.A !== undefined ? `${m.score.A}–${m.score.B}` : '' }),
+      h('td', { class: 'mech', text: m.mvp || '' })));
+    return [
+      h('h2', { class: 'page-title' }, h('b', { text: 'Head to head' }), `${d.matches_played} matches played`),
+      h('div', { class: 'h2h' },
+        h('div', { class: 'card' }, bars),
+        h('div', { class: 'card hist' },
+          h('div', { class: 'tbl-head', style: '--c:var(--dim)' }, 'Match results'),
+          table(['#', 'Map', 'Mode', 'Winner', 'Score', 'MVP'], hist))),
+    ];
+  }
+
+  function playersPage(d) {
+    const all = [...d.players.A, ...d.players.B];
+    if (!all.length) return null;
+    const has = (k) => all.some((p) => p[k] !== null && p[k] !== undefined);
+    const extra = [['solo_kills', 'Solo', n], ['survival_rate', 'Surv', pct], ['components', 'Comps', n]].filter(([k]) => has(k));
+    const cols = ['Pilot', 'Drops', 'Avg', 'Best', 'K', 'A'].concat(extra.map((e) => e[1]), ['Mechs']);
+    return [
+      h('h2', { class: 'page-title' }, h('b', { text: 'Pilots' }), 'Series numbers, best average damage first'),
+      h('div', { class: 'two players' }, ['A', 'B'].map((team) => h('div', { class: 'card' },
+        h('div', { class: 'tbl-head', style: `--c:${color(team)}` }, h('span', { class: cls(team), text: d.teams[team].name })),
+        table(cols, d.players[team].slice(0, 10).map((p) => h('tr', {},
+          h('td', { class: 'name', text: p.username }),
+          h('td', { class: 'num', text: p.matches }),
+          h('td', { class: 'num', text: n(p.avg_damage) }),
+          h('td', { class: 'num', text: n(p.best_damage) }),
+          h('td', { class: 'num', text: p.kills }),
+          h('td', { class: 'num', text: p.assists }),
+          extra.map(([k, , f]) => h('td', { class: 'num', text: f(p[k]) })),
+          h('td', { class: 'mech', text: (p.mechs || []).join(', ') }))))))),
+    ];
+  }
+
+  function awardsPage(d) {
+    if (!d.awards.length) return null;
+    return [
+      h('h2', { class: 'page-title' }, h('b', { text: 'Series awards' }), 'So far tonight'),
+      h('div', { class: 'awards' }, d.awards.slice(0, 9).map((a) => h('div', { class: 'card award', style: `--c:${color(a.team)}` },
+        h('div', { class: 't', text: a.title }),
+        h('div', { class: 'v num', text: a.value }),
+        h('div', { class: 'w', text: a.username }),
+        h('div', { class: 'd', text: a.detail })))),
+    ];
+  }
+
+  const BUILDERS = { recap: recapPage, teams: teamsPage, players: playersPage, awards: awardsPage };
+
+  /* -------------------------------------------------------------- render + rotate */
+
+  function renderHeader(d) {
+    if (!d.series) {
+      $('h-next').textContent = 'No series yet';
+      return;
+    }
+    $('h-name-a').textContent = d.teams.A.name;
+    $('h-name-b').textContent = d.teams.B.name;
+    $('h-wins-a').textContent = d.teams.A.wins;
+    $('h-wins-b').textContent = d.teams.B.wins;
+    $('h-next').textContent = d.matches_played ? `Up next: Match ${d.matches_played + 1}` : 'Starting soon';
+    $('h-series').textContent = d.series.name;
+  }
+
+  function renderPages(d) {
+    const available = [];
+    for (const page of d.pages) {
+      const section = $(`page-${page}`);
+      const content = d.series ? BUILDERS[page](d) : null;
+      const key = JSON.stringify(content ? [d.teams, page === 'recap' ? d.last_match : page === 'teams' ? [d.comparison, d.history] : d[page]] : null);
+      if (rendered[page] !== key) {
+        rendered[page] = key;
+        section.replaceChildren(...(content || []));
+      }
+      if (content) available.push(page);
+      document.querySelector(`.dot[data-page="${page}"]`).hidden = !content;
+    }
+    return available;
+  }
+
+  function show(page) {
+    if (page === current) return;
+    current = page;
+    shownAt = performance.now();
+    for (const section of document.querySelectorAll('.page')) section.classList.toggle('on', section.id === `page-${page}`);
+    for (const dot of document.querySelectorAll('.dot')) dot.classList.toggle('on', dot.dataset.page === page);
+  }
+
+  let available = [];
+
+  async function poll() {
+    try {
+      const response = await fetch('/api/overlay/intermission', { cache: 'no-store' });
+      if (!response.ok) return;
+      data = await response.json();
+      renderHeader(data);
+      available = renderPages(data);
+      if (!available.length) {
+        $('page-recap').replaceChildren(h('div', { class: 'empty', text: data.series ? 'Waiting for the first match…' : 'No series yet' }));
+        show('recap');
+        return;
+      }
+      const pinned = data.state.intermission_page;
+      if (pinned && available.includes(pinned)) show(pinned);
+      else if (!available.includes(current)) show(available[0]);
+    } catch (_) {
+      // App restarting: keep the last frame.
+    }
+  }
+
+  function frame(now) {
+    const pinned = data && data.state.intermission_page && available.includes(data.state.intermission_page);
+    const elapsed = now - shownAt;
+    $('timer').style.width = pinned ? '0' : `${Math.min(100, (elapsed / ROTATE_MS) * 100)}%`;
+    if (!pinned && available.length > 1 && elapsed >= ROTATE_MS) {
+      show(available[(available.indexOf(current) + 1) % available.length]);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  poll();
+  setInterval(poll, 3000);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

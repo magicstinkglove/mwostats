@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..db import get_series
+from ..intermission import PAGES, intermission
 from ..overlay import set_state, set_team_names, snapshot
 from .deps import get_conn
 
@@ -20,6 +21,8 @@ class OverlayStateRequest(BaseModel):
     series_id: int | None = None
     spotlight: str | None = None
     sidebars: bool | None = None  # both teams' player stats down the screen edges
+    # Pin the between-games scene to one page; null = rotate through them all.
+    intermission_page: str | None = None
     # Overlay-only names for the live series, e.g. {"A": "Emperors"}; blank/null
     # reverts that team to its name in the app.
     team_names: dict[str, str | None] | None = None
@@ -30,9 +33,16 @@ def overlay(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     return snapshot(conn)
 
 
+@router.get("/intermission")
+def overlay_intermission(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    return intermission(conn)
+
+
 @router.put("")
 def update_overlay(payload: OverlayStateRequest, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     changes = {k: getattr(payload, k) for k in payload.model_fields_set if k != "team_names"}
+    if changes.get("intermission_page") is not None and changes["intermission_page"] not in PAGES:
+        raise HTTPException(status_code=400, detail=f"intermission_page must be one of {', '.join(PAGES)}.")
     if "sidebars" in changes:
         changes["sidebars"] = bool(changes["sidebars"])
     if changes.get("series_id") is not None and get_series(conn, changes["series_id"]) is None:

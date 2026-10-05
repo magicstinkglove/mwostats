@@ -155,3 +155,30 @@ def test_overlay_sidebars_toggle_and_list_each_team(client):  # noqa: F811
     # Other changes leave the toggle alone.
     assert client.put("/api/overlay", json={"spotlight": "Alice"}).json()["state"]["sidebars"] is True
     assert client.put("/api/overlay", json={"sidebars": False}).json()["state"]["sidebars"] is False
+
+
+def test_intermission_breaks_down_the_live_series(client):  # noqa: F811
+    assert client.get("/api/overlay/intermission").json()["series"] is None
+
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2 m3"})
+    client.put("/api/overlay", json={"team_names": {"A": "Stream Name"}})
+
+    body = client.get("/api/overlay/intermission").json()
+    assert body["pages"] == ["recap", "teams", "players", "awards"]
+    assert "Stream Name" in {t["name"] for t in body["teams"].values()}
+    assert [m["number"] for m in body["history"]] == [1, 2, 3]
+    assert body["last_match"]["box_score"]["A"] and body["last_match"]["box_score"]["B"]
+    assert {r["label"] for r in body["comparison"]} >= {"Avg damage per pilot", "Kills"}
+    pilots = {p["username"] for rows in body["players"].values() for p in rows}
+    assert {"Alice", "Zed", "Eve"} <= pilots
+    titles = [a["title"] for a in body["awards"]]
+    assert "Damage Dealer" in titles and "Biggest Game" in titles
+
+
+def test_intermission_page_can_be_pinned_and_released(client):  # noqa: F811
+    create_series(client)
+    assert client.put("/api/overlay", json={"intermission_page": "awards"}).json()["state"]["intermission_page"] == "awards"
+    assert client.put("/api/overlay", json={"intermission_page": None}).json()["state"]["intermission_page"] is None
+    assert client.put("/api/overlay", json={"intermission_page": "nope"}).status_code == 400
+    assert "Between games" in client.get("/intermission").text

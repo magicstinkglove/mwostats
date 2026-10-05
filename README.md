@@ -148,6 +148,11 @@ by itself as you add matches. The caster page can also set team names for the ov
 (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats. Tick fewer boxes to get a URL with only some elements, so you
 can place them on different scenes.
 
+For the break between games, add a second scene with the **between-games** URL from the
+caster page. It's a full-screen breakdown that rotates through the last match's box score,
+a head-to-head team comparison with every result so far, each team's pilots, and series
+awards. You can also hold it on one page from the caster page.
+
 ---
 
 ## Troubleshooting
@@ -352,9 +357,10 @@ app/
   teams.py         co-occurrence inference          <- the core logic
   service.py       ingest, context assembly, token resolution, Jarl's List caching
   overlay.py       broadcast overlay snapshot and caster state
+  intermission.py  full-screen between-games breakdown
   metrics/         auto-discovered metric modules
   routes/          matches, series, metrics, settings, players
-web/               index.html + app.js + modules.js + style.css, overlay.html, caster.html (no build step)
+web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
 tests/             122 tests
 ```
@@ -383,7 +389,8 @@ GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own pag
 GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
-PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?}; null series = newest
+GET    /api/overlay/intermission               full between-games breakdown for the live series
+PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, intermission_page?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any
