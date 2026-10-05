@@ -171,6 +171,14 @@
 (function () {
   'use strict';
 
+  // OBS's built-in browser can be an older Chromium without replaceChildren (Chrome 86+).
+  if (!Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function (...nodes) {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      this.append(...nodes);
+    };
+  }
+
   function fit() {
     const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1;
     document.body.style.transform = scale === 1 ? '' : `scale(${scale})`;
@@ -331,7 +339,7 @@
       const stats = [
         ['Avg Dmg', sp.avg_damage.toLocaleString()],
         ['Kills', sp.kills],
-        sp.solo_kills !== null ? ['Solo', sp.solo_kills] : null,
+        sp.solo_kills !== null ? ['KMDD', sp.solo_kills] : null,
         sp.survival_rate !== null ? ['Survival', `${Math.round(sp.survival_rate * 100)}%`] : null,
         ['Drops', sp.matches],
       ].filter(Boolean);
@@ -349,12 +357,13 @@
       const response = await fetch('/api/overlay', { cache: 'no-store' });
       if (!response.ok) return;
       const data = await response.json();
-      renderScore(data);
-      renderLast(data);
-      renderMaps(data);
-      renderLeaders(data);
-      renderSidebars(data);
-      renderSpotlight(data);
+      // Each element renders on its own, so one failing never blanks the rest.
+      for (const render of [renderScore, renderLast, renderMaps, renderLeaders, renderSidebars, renderSpotlight]) {
+        try { render(data); } catch (err) {
+          console.error(`overlay: ${render.name} failed`, err);
+          previous = {};  // retry the half-built element on the next poll
+        }
+      }
     } catch (_) {
       // App restarting or briefly unreachable: keep the last frame on screen.
     }

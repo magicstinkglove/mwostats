@@ -49,8 +49,8 @@ def test_comp_stats_awards_name_the_right_pilots():
     })
     sections = get_module("comp_stats").compute(ctx)["sections"]
     awards = {s["label"]: s for s in sections[1]["groups"][0]["stats"]}
-    assert awards["Solo Kill King"]["name"] == "Alice"
-    assert awards["Solo Kill King"]["value"] == "4"
+    assert awards["KMDD King"]["name"] == "Alice"
+    assert awards["KMDD King"]["value"] == "4"
     assert awards["Friendly Fire Award"]["name"] == "Bob"
     assert awards["Last Mech Standing"]["name"] in {"Alice", "Eve"}  # both survived 2/2
     assert sections[-1]["title"] == "By lance"

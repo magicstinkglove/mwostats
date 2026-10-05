@@ -63,7 +63,7 @@ def _team_comparison(ctx: SeriesContext) -> list[dict[str, Any]]:
         ("kills", "Kills", "{:,.0f}", False),
         ("assists", "Assists", "{:,.0f}", False),
         ("survival_rate", "Survival rate", "pct", False),
-        ("solo_kills", "Solo kills", "{:,.0f}", False),
+        ("solo_kills", "KMDD", "{:,.0f}", False),
         ("components", "Components destroyed", "{:,.0f}", False),
         ("avg_score", "Avg match score", "{:,.0f}", False),
         ("team_damage", "Friendly fire", "{:,.0f}", True),
@@ -137,7 +137,7 @@ def _awards(ctx: SeriesContext, players: dict[str, list[dict[str, Any]]]) -> lis
           lambda p: f"{p['avg_damage']:,}", lambda p: f"avg damage over {p['matches']} drops")
     award("Executioner", everyone, lambda p: p["kills"],
           lambda p: str(p["kills"]), lambda p: "kills in the series")
-    award("Solo Kill King", everyone, lambda p: p["solo_kills"],
+    award("KMDD King", everyone, lambda p: p["solo_kills"],
           lambda p: str(p["solo_kills"]), lambda p: "kills where they did the most damage")
     award("Last Mech Standing", veterans, lambda p: p["survival_rate"],
           lambda p: f"{p['survival_rate'] * 100:.0f}%", lambda p: "of drops survived")

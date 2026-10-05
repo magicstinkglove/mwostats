@@ -189,7 +189,7 @@ def _leaders(ctx: SeriesContext) -> list[dict[str, Any]]:
     picks = [
         lead("avg_damage", "Avg Damage", lambda v: f"{v:,.0f}"),
         lead("kills", "Kills", lambda v: str(v)),
-        lead("solo_kills", "Solo Kills", lambda v: str(v)),
+        lead("solo_kills", "KMDD", lambda v: str(v)),
         lead("survival_rate", "Survival", lambda v: f"{v * 100:.0f}%"),
     ]
     return [p for p in picks if p]

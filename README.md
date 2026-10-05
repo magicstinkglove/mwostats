@@ -131,8 +131,8 @@ Once you see `Application startup complete`, open `http://localhost:8000`.
    their full profile. Not every player is tracked there — when that's the case, the section
    just doesn't appear.
 
-7. **Combat Detail** shows survival rate, solo kills (kills where that pilot did the most
-   damage), components destroyed, friendly fire and per-lance splits, when MWO's match data
+7. **Combat Detail** shows survival rate, KMDD (kills where that pilot did the most damage,
+   which can be more than their kill count), components destroyed, friendly fire and per-lance splits, when MWO's match data
    includes those fields.
 
 You can keep multiple **series** (named groups of matches) — switch between them from the

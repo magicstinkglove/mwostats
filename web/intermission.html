@@ -160,6 +160,14 @@
 (function () {
   'use strict';
 
+  // OBS's built-in browser can be an older Chromium without replaceChildren (Chrome 86+).
+  if (!Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function (...nodes) {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      this.append(...nodes);
+    };
+  }
+
   function fit() {
     const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1;
     document.body.style.transform = scale === 1 ? '' : `scale(${scale})`;
@@ -223,7 +231,7 @@
       const rows = (last.box_score[team] || []);
       const hasSolo = rows.some((r) => r.solo_kills !== null);
       const hasHp = rows.some((r) => r.health !== null);
-      const cols = ['Pilot', 'Mech', 'Dmg', 'K', 'A'].concat(hasSolo ? ['Solo'] : [], hasHp ? ['HP'] : []);
+      const cols = ['Pilot', 'Mech', 'Dmg', 'K', 'A'].concat(hasSolo ? ['KMDD'] : [], hasHp ? ['HP'] : []);
       return h('div', { class: 'card' },
         h('div', { class: 'tbl-head', style: `--c:${color(team)}` }, h('span', { class: cls(team), text: d.teams[team].name }),
           h('span', { class: 'tag', text: winner === team ? 'Winner' : '' })),
@@ -277,7 +285,7 @@
     const all = [...d.players.A, ...d.players.B];
     if (!all.length) return null;
     const has = (k) => all.some((p) => p[k] !== null && p[k] !== undefined);
-    const extra = [['solo_kills', 'Solo', n], ['survival_rate', 'Surv', pct], ['components', 'Comps', n]].filter(([k]) => has(k));
+    const extra = [['solo_kills', 'KMDD', n], ['survival_rate', 'Surv', pct], ['components', 'Comps', n]].filter(([k]) => has(k));
     const cols = ['Pilot', 'Drops', 'Avg', 'Best', 'K', 'A'].concat(extra.map((e) => e[1]), ['Mechs']);
     return [
       h('h2', { class: 'page-title' }, h('b', { text: 'Pilots' }), 'Series numbers, best average damage first'),

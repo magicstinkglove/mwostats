@@ -1,4 +1,5 @@
-"""Combat detail from API fields the core stats ignore: survival, solo kills,
+"""Combat detail from API fields the core stats ignore: survival, KMDD (kills
+where the pilot did the most damage, which can exceed their kill count),
 components destroyed, friendly fire and lance.
 
 MWO's API documents these per-player fields (HealthPercentage, KillsMostDamage,
@@ -75,7 +76,7 @@ def _num(value: float | int | None, places: int = 0) -> str:
 class CompStats:
     id = "comp_stats"
     name = "Combat Detail"
-    description = "Survival, solo kills, components destroyed, friendly fire and lance splits."
+    description = "Survival, KMDD, components destroyed, friendly fire and lance splits."
     order = 25
 
     def compute(self, ctx: SeriesContext) -> dict:
@@ -93,7 +94,7 @@ class CompStats:
         }
         if not any(reported.values()):
             return {"sections": [note_section(
-                "These matches don't include survival, solo-kill, component or friendly-fire "
+                "These matches don't include survival, KMDD, component or friendly-fire "
                 "fields, so there's nothing extra to show."
             )]}
 
@@ -117,7 +118,7 @@ class CompStats:
                 stats.append({"label": "Avg Health Left", "value": _pct(
                     None if t["avg_health"] is None else t["avg_health"] / 100)})
             if reported["solo_kills"]:
-                stats.append({"label": "Solo Kills", "value": _num(t["solo_kills"])})
+                stats.append({"label": "KMDD", "value": _num(t["solo_kills"])})
             if reported["components"]:
                 stats.append({"label": "Components Destroyed", "value": _num(t["components"])})
             if reported["team_damage"]:
@@ -144,8 +145,8 @@ class CompStats:
                 hint=lambda p: f"survived {p['survived']} of {p['reported']}", pool=veterans,
             ) if veterans else {"label": "Last Mech Standing", "value": "—", "hint": "needs 2+ matches"})
         if reported["solo_kills"]:
-            stats.append(leader("solo_kills", "Solo Kill King", lambda p: _num(p["solo_kills"]),
-                                hint="kills with most damage"))
+            stats.append(leader("solo_kills", "KMDD King", lambda p: _num(p["solo_kills"]),
+                                hint="kills where they did the most damage"))
         if reported["components"]:
             stats.append(leader("components", "Component Shredder", lambda p: _num(p["components"]),
                                 hint="components destroyed"))
@@ -164,7 +165,7 @@ class CompStats:
             cols += [("Survived", lambda p: f"{p['survived'] or 0}/{p['reported']}"),
                      ("Avg HP", lambda p: _pct(None if p["avg_health"] is None else p["avg_health"] / 100))]
         if reported["solo_kills"]:
-            cols.append(("Solo Kills", lambda p: _num(p["solo_kills"])))
+            cols.append(("KMDD", lambda p: _num(p["solo_kills"])))
         if reported["components"]:
             cols.append(("Comps", lambda p: _num(p["components"])))
         if reported["team_damage"]:
