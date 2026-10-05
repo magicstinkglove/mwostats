@@ -113,3 +113,27 @@ def test_overlay_rejects_unknown_series(client):  # noqa: F811
 def test_overlay_and_caster_pages_are_served(client):  # noqa: F811
     assert "OBS" in client.get("/overlay").text
     assert "Caster Controls" in client.get("/caster").text
+
+
+def test_overlay_team_names_change_only_the_overlay(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+    client.put(f"/api/series/{series['id']}/teams", json={"team_a_name": "[EmP] Emperors", "team_b_name": "Bravo"})
+
+    body = client.put("/api/overlay", json={"team_names": {"A": "  Emperors ", "B": ""}}).json()
+    assert body["teams"]["A"]["name"] == "Emperors"
+    assert body["teams"]["A"]["app_name"] == "[EmP] Emperors"
+    assert body["teams"]["B"]["name"] == "Bravo"
+    assert body["last_match"]["winner_name"] in {"Emperors", "Bravo"}
+
+    # The app's own series and stats keep the real name.
+    assert client.get(f"/api/series/{series['id']}").json()["team_a_name"] == "[EmP] Emperors"
+
+    # Names are per series: a new newest series starts with its own names.
+    create_series(client, "Next Night")
+    assert client.get("/api/overlay").json()["teams"]["A"]["name"] == "Team A"
+
+    # Blank reverts to the app's name.
+    client.put("/api/overlay", json={"series_id": series["id"]})
+    body = client.put("/api/overlay", json={"team_names": {"A": None}}).json()
+    assert body["teams"]["A"]["name"] == "[EmP] Emperors"

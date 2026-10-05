@@ -24,6 +24,12 @@
       background: repeating-conic-gradient(#1b222c 0 25%, #141a22 0 50%) 0 0 / 32px 32px;
     }
     .preview iframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; }
+    .name-input { width: 100%; box-sizing: border-box; padding: 7px 9px; }
+    .name-input, .url-box input {
+      font: inherit; font-size: 13px; color: var(--text);
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .url-box input { font-family: var(--mono); font-size: 12px; }
     .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
     @media (max-width: 800px) { .cast-grid { grid-template-columns: 1fr; } }
   </style>
@@ -54,6 +60,11 @@
       <label class="field-label" for="series-select">Which series the overlay shows</label>
       <select id="series-select"></select>
       <p class="hint">"Newest series" follows whatever you create next, so the OBS source never needs touching on league night.</p>
+      <div class="cast-grid" style="margin-top:14px">
+        <div><label class="field-label" for="name-a">Team A name on stream</label><input id="name-a" class="name-input" data-team="A"></div>
+        <div><label class="field-label" for="name-b">Team B name on stream</label><input id="name-b" class="name-input" data-team="B"></div>
+      </div>
+      <p class="hint">Changes only the overlay; the stats keep the app's names. Leave blank to use the app's name. Saved per series.</p>
     </div>
   </section>
 
@@ -136,6 +147,12 @@
       ? `${snap.series.name} · ${snap.teams.A.wins}–${snap.teams.B.wins}` : 'No series yet';
 
     for (const team of ['A', 'B']) {
+      const input = $(`name-${team.toLowerCase()}`);
+      input.disabled = !snap.teams;
+      if (snap.teams && document.activeElement !== input) {
+        input.placeholder = snap.teams[team].app_name;
+        input.value = snap.teams[team].overlay_name || '';
+      }
       const list = $(`spot-list-${team.toLowerCase()}`);
       $(`spot-name-${team.toLowerCase()}`).textContent = snap.teams ? snap.teams[team].name : `Team ${team}`;
       const names = snap.rosters ? snap.rosters[team] : [];
@@ -168,6 +185,10 @@
   }
 
   $('series-select').onchange = (e) => update({ series_id: e.target.value ? Number(e.target.value) : null });
+  for (const input of document.querySelectorAll('.name-input')) {
+    input.onchange = () => update({ team_names: { [input.dataset.team]: input.value } });
+    input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); };
+  }
   $('clear-spot').onclick = () => update({ spotlight: null });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
   $('show-opts').onchange = refreshUrl;

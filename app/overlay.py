@@ -5,6 +5,7 @@ spotlight) that the overlay and the caster control page share.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import sqlite3
 from collections import Counter
@@ -20,13 +21,22 @@ _STATE_KEY = "overlay_state"
 
 
 def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
-    """{series_id, spotlight}; series_id None means "the newest series"."""
+    """{series_id, spotlight, team_names}; series_id None means "the newest series".
+
+    team_names maps a series id (as a string, it round-trips through JSON) to
+    overlay-only names for that series, e.g. {"3": {"A": "Emperors"}}. Keyed by
+    series so following "the newest series" never carries last night's names over.
+    """
     raw = get_app_setting(conn, _STATE_KEY)
     try:
         state = json.loads(raw) if raw else {}
     except ValueError:
         state = {}
-    return {"series_id": state.get("series_id"), "spotlight": state.get("spotlight")}
+    return {
+        "series_id": state.get("series_id"),
+        "spotlight": state.get("spotlight"),
+        "team_names": state.get("team_names") or {},
+    }
 
 
 def set_state(conn: sqlite3.Connection, **changes: Any) -> dict[str, Any]:
@@ -36,6 +46,24 @@ def set_state(conn: sqlite3.Connection, **changes: Any) -> dict[str, Any]:
     state.update(changes)
     set_app_setting(conn, _STATE_KEY, json.dumps(state))
     return state
+
+
+def set_team_names(conn: sqlite3.Connection, names: dict[str, str | None]) -> None:
+    """Overlay-only team names for the live series; a blank or null name clears it."""
+    state = get_state(conn)
+    series_id = _live_series_id(conn, state)
+    if series_id is None:
+        return
+    current = dict(state["team_names"].get(str(series_id), {}))
+    for team in (TEAM_A, TEAM_B):
+        if team in names:
+            name = (names[team] or "").strip()
+            if name:
+                current[team] = name
+            else:
+                current.pop(team, None)
+    state["team_names"][str(series_id)] = current
+    set_app_setting(conn, _STATE_KEY, json.dumps(state))
 
 
 def _live_series_id(conn: sqlite3.Connection, state: dict) -> int | None:
@@ -153,12 +181,27 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
     if ctx is None:
         return {"state": state, "series": None}
 
+    # Swap the overlay names into the context so every team_name() below uses them,
+    # without touching the series itself (the stats pages keep the real names).
+    app_names = {TEAM_A: ctx.series.team_a_name, TEAM_B: ctx.series.team_b_name}
+    overrides = state["team_names"].get(str(ctx.series.id), {})
+    ctx.series = dataclasses.replace(
+        ctx.series,
+        team_a_name=overrides.get(TEAM_A) or app_names[TEAM_A],
+        team_b_name=overrides.get(TEAM_B) or app_names[TEAM_B],
+    )
+
     record = ctx.team_record()
     return {
         "state": state,
         "series": {"id": ctx.series.id, "name": ctx.series.name},
         "teams": {
-            team: {"name": ctx.team_name(team), "wins": record[team]["wins"]}
+            team: {
+                "name": ctx.team_name(team),
+                "app_name": app_names[team],
+                "overlay_name": overrides.get(team),
+                "wins": record[team]["wins"],
+            }
             for team in (TEAM_A, TEAM_B)
         },
         "matches_played": len(ctx.matches),
