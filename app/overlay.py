@@ -38,6 +38,7 @@ def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
         "team_names": state.get("team_names") or {},
         "sidebars": bool(state.get("sidebars")),
         "intermission_page": state.get("intermission_page"),
+        "map_plans": state.get("map_plans") or {},
     }
 
 
@@ -66,6 +67,49 @@ def set_team_names(conn: sqlite3.Connection, names: dict[str, str | None]) -> No
                 current.pop(team, None)
     state["team_names"][str(series_id)] = current
     set_app_setting(conn, _STATE_KEY, json.dumps(state))
+
+
+# The maps casters pick from. Free text is allowed too (new maps, night variants).
+MAP_CHOICES = (
+    "Alpine Peaks", "Canyon Network", "Caustic Valley", "Crimson Strait", "Emerald Taiga",
+    "Forest Colony", "Frozen City", "Grim Plexus", "Hellebore Springs", "HPG Manifold",
+    "Mining Collective", "Polar Highlands", "River City", "Rubellite Oasis", "Solaris City",
+    "Terra Therma", "Tourmaline Desert", "Viridian Bog", "Vitric Forge",
+)
+MODE_CHOICES = ("Skirmish", "Domination", "Conquest", "Assault", "Incursion", "Escort")
+MAX_PLANNED_MAPS = 20
+
+
+def set_map_plan(conn: sqlite3.Connection, plan: list[dict[str, str | None]]) -> None:
+    """The live series' map order: [{map, mode}], first drop first. Blank maps are dropped."""
+    state = get_state(conn)
+    series_id = _live_series_id(conn, state)
+    if series_id is None:
+        return
+    cleaned = []
+    for slot in plan[:MAX_PLANNED_MAPS]:
+        name = str(slot.get("map") or "").strip()[:40]
+        if name:
+            cleaned.append({"map": name, "mode": str(slot.get("mode") or "").strip()[:20] or None})
+    state["map_plans"][str(series_id)] = cleaned
+    set_app_setting(conn, _STATE_KEY, json.dumps(state))
+
+
+def _map_plan(ctx: SeriesContext, plan: list[dict]) -> list[dict[str, Any]]:
+    """The planned maps with progress: match N (chronological) completes slot N."""
+    out = []
+    for index, slot in enumerate(plan):
+        entry = {"number": index + 1, "map": slot["map"], "mode": slot.get("mode"),
+                 "status": "upcoming", "winner": None, "winner_name": None, "score": None, "played_map": None}
+        if index < len(ctx.matches):
+            match = ctx.matches[index]
+            winner = ctx.match_winner(match)
+            entry.update(status="done", winner=winner, winner_name=ctx.team_name(winner) if winner else None,
+                         score=_team_score(ctx, match), played_map=match.map_name or None)
+        elif index == len(ctx.matches):
+            entry["status"] = "next"
+        out.append(entry)
+    return out
 
 
 def _live_series_id(conn: sqlite3.Connection, state: dict) -> int | None:
@@ -242,6 +286,9 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         "leaders": _leaders(ctx),
         "spotlight": _spotlight(ctx, state["spotlight"]),
         "sidebars": _sidebars(ctx),
+        "map_plan": _map_plan(ctx, state["map_plans"].get(str(ctx.series.id), [])),
+        "map_choices": sorted(set(MAP_CHOICES) | {m.map_name for m in ctx.matches if m.map_name}),
+        "mode_choices": list(MODE_CHOICES),
         "rosters": {
             team: [a.username for a in ctx.inference.roster(team)] for team in (TEAM_A, TEAM_B)
         },

@@ -12,7 +12,7 @@ from typing import Any
 from .metrics.base import SeriesContext, mean, stdev
 from .metrics.comp_stats import combat_line, combat_totals
 from .models import TEAM_A, TEAM_B, Match
-from .overlay import _last_match, _team_score, live_context
+from .overlay import _last_match, _map_plan, _team_score, live_context
 
 PAGES = ("recap", "teams", "players", "awards")
 MIN_MATCHES_FOR_RATES = 2
@@ -202,6 +202,7 @@ def intermission(conn: sqlite3.Connection) -> dict[str, Any]:
         "last_match": last,
         "comparison": _team_comparison(ctx),
         "history": _history(ctx),
+        "map_plan": _map_plan(ctx, state["map_plans"].get(str(ctx.series.id), [])),
         "players": players,
         "awards": _awards(ctx, players),
     }

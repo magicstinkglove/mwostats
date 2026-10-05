@@ -182,3 +182,30 @@ def test_intermission_page_can_be_pinned_and_released(client):  # noqa: F811
     assert client.put("/api/overlay", json={"intermission_page": None}).json()["state"]["intermission_page"] is None
     assert client.put("/api/overlay", json={"intermission_page": "nope"}).status_code == 400
     assert "Between games" in client.get("/intermission").text
+
+
+def test_map_plan_ticks_off_maps_as_matches_arrive(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    plan = [{"map": "Frozen City", "mode": "Skirmish"}, {"map": "Canyon Network"},
+            {"map": "  "}, {"map": "River City", "mode": "Conquest"}]
+    body = client.put("/api/overlay", json={"map_plan": plan}).json()
+    assert [m["map"] for m in body["map_plan"]] == ["Frozen City", "Canyon Network", "River City"]
+    assert [m["status"] for m in body["map_plan"]] == ["next", "upcoming", "upcoming"]
+    assert "Frozen City" in body["map_choices"] and "Skirmish" in body["mode_choices"]
+
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+    body = client.get("/api/overlay").json()
+    assert [m["status"] for m in body["map_plan"]] == ["done", "done", "next"]
+    assert body["map_plan"][0]["winner_name"]
+    assert body["map_plan"][0]["played_map"] == "Frozen City"
+    assert client.get("/api/overlay/intermission").json()["map_plan"][2]["status"] == "next"
+
+    # Plans are per series.
+    create_series(client, "Next Night")
+    assert client.get("/api/overlay").json()["map_plan"] == []
+
+
+def test_map_plan_is_capped(client):  # noqa: F811
+    create_series(client)
+    too_many = [{"map": f"Map {i}"} for i in range(21)]
+    assert client.put("/api/overlay", json={"map_plan": too_many}).status_code == 422

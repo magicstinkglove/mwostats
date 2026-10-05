@@ -32,6 +32,27 @@
     .url-box input { font-family: var(--mono); font-size: 12px; }
     .page-btns { display: flex; flex-wrap: wrap; gap: 6px; }
     .page-btns .btn.active { background: var(--team-a); border-color: var(--team-a); color: #1a1205; font-weight: 600; }
+    .map-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 6px; }
+    .map-row {
+      display: grid; grid-template-columns: 28px 30px 1fr 160px 230px 36px; align-items: center; gap: 10px;
+      padding: 6px 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .map-row.dragging { opacity: .4; }
+    .map-row.drop-before { box-shadow: 0 -3px 0 var(--team-a); }
+    .map-row.drop-after { box-shadow: 0 3px 0 var(--team-a); }
+    .map-row .grip { cursor: grab; color: var(--muted); font-size: 18px; text-align: center; user-select: none; }
+    .map-row .idx { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; }
+    .map-row input, .map-row select {
+      font: inherit; font-size: 13px; color: var(--text); background: var(--panel);
+      border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; box-sizing: border-box;
+    }
+    .map-row .status { font-size: 12px; color: var(--muted); }
+    .map-row .status.done { color: var(--ok); }
+    .map-row .status.off { color: var(--warn); }
+    .map-row .status.next { color: var(--text); font-weight: 600; }
+    .map-row .remove { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 6px; }
+    .map-row .remove:hover { color: var(--danger); background: rgba(248,81,73,.12); }
+    .map-empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
     .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
     @media (max-width: 800px) { .cast-grid { grid-template-columns: 1fr; } }
   </style>
@@ -72,6 +93,18 @@
 
   <section class="panel">
     <div class="panel-head">
+      <h2>Map order</h2>
+      <button id="add-map" class="btn">+ Add map</button>
+    </div>
+    <div class="panel-body">
+      <ol class="map-list" id="map-list"></ol>
+      <datalist id="map-choices"></datalist>
+      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map on the overlay; a yellow status means the match was played on a different map than planned.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
       <h2>Team sidebars</h2>
       <button id="sidebars-btn" class="btn">Show player stats on sides</button>
     </div>
@@ -100,6 +133,7 @@
       <div class="show-opts" id="show-opts">
         <label class="checkbox"><input type="checkbox" value="score" checked> Scorebug</label>
         <label class="checkbox"><input type="checkbox" value="last" checked> Last match result</label>
+        <label class="checkbox"><input type="checkbox" value="maps" checked> Map order</label>
         <label class="checkbox"><input type="checkbox" value="leaders" checked> Series leaders</label>
         <label class="checkbox"><input type="checkbox" value="spotlight" checked> Player spotlight</label>
         <label class="checkbox"><input type="checkbox" value="sidebars" checked> Team sidebars</label>
@@ -162,6 +196,130 @@
     } catch (err) { banner(err.message); }
   }
 
+  /* ---------------------------------------------------------- map order */
+
+  // `plan` is the caster's working copy; it only syncs from the server when the
+  // list isn't being edited, so a poll never clobbers a half-typed map name.
+  let plan = [];
+  let planSeries = null;
+  let saveTimer = null;
+  let dragFrom = null;
+
+  function planEditing() {
+    return dragFrom !== null || saveTimer !== null || $('map-list').contains(document.activeElement);
+  }
+
+  function savePlan(delay = 0) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      saveTimer = null;
+      await update({ map_plan: plan.filter((p) => p.map.trim()) });
+    }, delay);
+  }
+
+  function syncPlanFromServer() {
+    if (!snap || !snap.series) { plan = []; planSeries = null; renderPlan(); return; }
+    const server = (snap.map_plan || []).map((p) => ({ map: p.map, mode: p.mode || '' }));
+    const blanks = plan.filter((p) => !p.map.trim()).length;
+    const local = plan.filter((p) => p.map.trim());
+    if (planSeries !== snap.series.id || JSON.stringify(server) !== JSON.stringify(local)) {
+      plan = server.concat(planSeries === snap.series.id ? Array.from({ length: blanks }, () => ({ map: '', mode: '' })) : []);
+      planSeries = snap.series.id;
+    }
+    renderPlan();
+  }
+
+  function statusFor(index) {
+    const slot = (snap && snap.map_plan || [])[index];
+    if (!slot) return { cls: '', text: '' };
+    if (slot.status === 'done') {
+      const norm = (v) => (v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const off = slot.played_map && norm(slot.played_map) !== norm(slot.map);
+      return {
+        cls: off ? 'off' : 'done',
+        text: `${slot.winner_name ? `✓ ${slot.winner_name}` : '✓ Played'}${off ? ` · played ${slot.played_map}` : ''}`,
+      };
+    }
+    if (slot.status === 'next') return { cls: 'next', text: 'Up next' };
+    return { cls: '', text: '' };
+  }
+
+  function renderPlan() {
+    const list = $('map-list');
+    $('add-map').disabled = !(snap && snap.series);
+    $('map-choices').replaceChildren(...((snap && snap.map_choices) || []).map((m) => new Option(m)));
+    if (!plan.length) {
+      list.replaceChildren(Object.assign(document.createElement('li'), {
+        className: 'map-empty', textContent: snap && snap.series ? 'No maps yet. Add the first one.' : 'No series yet.',
+      }));
+      return;
+    }
+    list.replaceChildren(...plan.map((slot, index) => {
+      const row = document.createElement('li');
+      row.className = 'map-row';
+      row.draggable = true;
+      row.dataset.index = index;
+
+      const grip = Object.assign(document.createElement('span'), { className: 'grip', textContent: '⠿', title: 'Drag to reorder' });
+      const idx = Object.assign(document.createElement('span'), { className: 'idx', textContent: index + 1 });
+
+      const map = Object.assign(document.createElement('input'), { value: slot.map, placeholder: 'Pick or type a map' });
+      map.setAttribute('list', 'map-choices');
+      map.oninput = () => { slot.map = map.value; savePlan(600); };
+      map.onchange = () => savePlan(0);
+
+      const mode = document.createElement('select');
+      mode.append(new Option('Any mode', ''), ...((snap && snap.mode_choices) || []).map((m) => new Option(m, m)));
+      mode.value = slot.mode || '';
+      mode.onchange = () => { slot.mode = mode.value; savePlan(0); };
+
+      const st = statusFor(index);
+      const status = Object.assign(document.createElement('span'), { className: `status ${st.cls}`, textContent: st.text });
+
+      const remove = Object.assign(document.createElement('button'), { className: 'remove', textContent: '×', title: 'Remove' });
+      remove.onclick = () => { plan.splice(index, 1); renderPlan(); savePlan(0); };
+
+      for (const el of [map, mode, remove]) {
+        // Typing or clicking in a control shouldn't start a row drag.
+        el.onmousedown = () => { row.draggable = false; };
+        el.onblur = () => { row.draggable = true; };
+      }
+      map.onkeydown = (e) => { if (e.key === 'Enter') map.blur(); e.stopPropagation(); };
+
+      row.ondragstart = (e) => { dragFrom = index; row.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+      row.ondragend = () => { dragFrom = null; renderPlan(); };
+      row.ondragover = (e) => {
+        if (dragFrom === null) return;
+        e.preventDefault();
+        const after = e.offsetY > row.clientHeight / 2;
+        row.classList.toggle('drop-before', !after);
+        row.classList.toggle('drop-after', after);
+      };
+      row.ondragleave = () => row.classList.remove('drop-before', 'drop-after');
+      row.ondrop = (e) => {
+        e.preventDefault();
+        if (dragFrom === null) return;
+        let to = index + (e.offsetY > row.clientHeight / 2 ? 1 : 0);
+        const [moved] = plan.splice(dragFrom, 1);
+        if (dragFrom < to) to -= 1;
+        plan.splice(to, 0, moved);
+        dragFrom = null;
+        renderPlan();
+        savePlan(0);
+      };
+
+      row.append(grip, idx, map, mode, status, remove);
+      return row;
+    }));
+  }
+
+  $('add-map').onclick = () => {
+    plan.push({ map: '', mode: '' });
+    renderPlan();
+    const inputs = $('map-list').querySelectorAll('input');
+    inputs[inputs.length - 1].focus();
+  };
+
   async function loadSeries() {
     const { series } = await api('/api/series');
     const select = $('series-select');
@@ -174,6 +332,7 @@
 
   function render() {
     if (!snap) return;
+    if (!planEditing()) syncPlanFromServer();
     $('series-select').value = snap.state.series_id === null ? '' : String(snap.state.series_id);
     for (const btn of document.querySelectorAll('#page-btns .btn')) {
       btn.classList.toggle('active', (btn.dataset.page || null) === (snap.state.intermission_page || null));
@@ -208,7 +367,7 @@
   function overlayUrl() {
     const picked = [...document.querySelectorAll('#show-opts input:checked')].map((i) => i.value);
     const base = `${location.origin}/overlay`;
-    return picked.length === 5 ? base : `${base}?show=${picked.join(',')}`;
+    return picked.length === 6 ? base : `${base}?show=${picked.join(',')}`;
   }
 
   function refreshUrl() {

@@ -148,6 +148,9 @@ by itself as you add matches. The caster page can also set team names for the ov
 (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats. Tick fewer boxes to get a URL with only some elements, so you
 can place them on different scenes.
 
+Set the night's **map order** on the caster page: pick or type each map (and mode), drag to
+reorder. The overlay shows the order and ticks off the next map each time you add a match.
+
 For the break between games, add a second scene with the **between-games** URL from the
 caster page. It's a full-screen breakdown that rotates through the last match's box score,
 a head-to-head team comparison with every result so far, each team's pilots, and series
@@ -390,7 +393,7 @@ GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
 GET    /api/overlay/intermission               full between-games breakdown for the live series
-PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, intermission_page?}; null series = newest
+PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, intermission_page?, map_plan?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any

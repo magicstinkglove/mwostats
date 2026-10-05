@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>MWO Overlay</title>
-  <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,leaders,spotlight,sidebars
+  <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,maps,leaders,spotlight,sidebars
        (default: all). Spotlight and sidebars appear only when switched on from /caster; polls the app every 2s. -->
   <style>
     :root {
@@ -46,6 +46,27 @@
     @keyframes pop { 0% { transform: scale(1.6); filter: brightness(1.8); } 100% { transform: scale(1); } }
 
     /* ---------------------------------------------------- last match strip */
+    /* ---------------------------------------------------- map order strip */
+    #maps {
+      position: absolute; top: 140px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 6px; white-space: nowrap;
+    }
+    #maps.high { top: 92px; }
+    .mp {
+      display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--plate);
+      font-size: 15px; border-bottom: 3px solid transparent;
+    }
+    .mp .n { font-size: 13px; color: var(--dim); }
+    .mp .m { font-weight: 600; }
+    .mp .mode { font-size: 13px; color: var(--dim); }
+    .mp .res { font-size: 14px; font-weight: 700; color: var(--c); }
+    .mp.done { border-bottom-color: var(--c); }
+    .mp.done .m { color: var(--dim); }
+    .mp.next { background: rgba(244,246,248,.92); color: #10151b; border-bottom-color: #fff; }
+    .mp.next .n, .mp.next .mode { color: #3a434e; }
+    .mp.next .tag { font-size: 12px; font-weight: 800; letter-spacing: 1.5px; }
+    .mp.upcoming { opacity: .8; }
+
     #last {
       position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
       display: flex; align-items: center; gap: 18px; padding: 8px 22px;
@@ -74,7 +95,7 @@
 
     /* ---------------------------------------------------- team sidebars */
     .sidebar {
-      position: absolute; top: 170px; width: 330px; background: var(--plate);
+      position: absolute; top: 200px; width: 330px; background: var(--plate);
       filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
       opacity: 0; transition: transform .55s cubic-bezier(.2,.8,.2,1), opacity .35s;
     }
@@ -123,6 +144,8 @@
 
 <div id="last" hidden></div>
 
+<div id="maps" hidden></div>
+
 <div id="leaders" hidden>
   <h3>Series leaders</h3>
   <div id="leaders-rows"></div>
@@ -146,7 +169,7 @@
   'use strict';
 
   const params = new URLSearchParams(location.search);
-  const ALL = ['score', 'last', 'leaders', 'spotlight', 'sidebars'];
+  const ALL = ['score', 'last', 'maps', 'leaders', 'spotlight', 'sidebars'];
   const shown = new Set((params.get('show') || ALL.join(',')).split(',').map((s) => s.trim()));
   const TEAM_COLOR = { A: 'var(--team-a)', B: 'var(--team-b)' };
   const $ = (id) => document.getElementById(id);
@@ -245,6 +268,31 @@
     }
   }
 
+  function renderMaps(data) {
+    const box = $('maps');
+    const plan = data.map_plan || [];
+    box.hidden = !shown.has('maps') || !data.series || !plan.length;
+    if (box.hidden) return;
+    box.classList.toggle('high', $('last').hidden);
+    const key = JSON.stringify(plan);
+    if (previous.maps === key) return;
+    previous.maps = key;
+    box.replaceChildren(...plan.map((slot) => {
+      const pill = node('div', `mp ${slot.status}`);
+      pill.style.setProperty('--c', color(slot.winner));
+      pill.append(node('span', 'n', slot.number), node('span', 'm', slot.map));
+      if (slot.mode && slot.status !== 'done') pill.append(node('span', 'mode', slot.mode));
+      if (slot.status === 'done') {
+        const s = slot.score && slot.winner && slot.score[slot.winner] !== undefined
+          ? ` ${slot.score[slot.winner]}–${slot.score[slot.winner === 'A' ? 'B' : 'A']}` : '';
+        pill.append(node('span', 'res', slot.winner ? (s.trim() || '✓') : '✓'));
+      } else if (slot.status === 'next') {
+        pill.append(node('span', 'tag', 'NEXT'));
+      }
+      return pill;
+    }));
+  }
+
   function renderLeaders(data) {
     const box = $('leaders');
     // The sidebars already carry everyone's numbers, and the right one sits where this box does.
@@ -293,6 +341,7 @@
       const data = await response.json();
       renderScore(data);
       renderLast(data);
+      renderMaps(data);
       renderLeaders(data);
       renderSidebars(data);
       renderSpotlight(data);

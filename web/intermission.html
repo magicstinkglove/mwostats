@@ -96,7 +96,8 @@
     .hist th, .hist td { text-align: left; }
     .hist .r, .hist th:nth-child(5) { text-align: right; }
     .chip { display: inline-block; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; padding: 3px 10px; font-weight: 700; color: #0d1218; font-size: 17px; }
-    .chip.a { background: var(--team-a); } .chip.b { background: var(--team-b); }
+    .chip.a { background: var(--team-a); }
+    .chip.next { background: var(--ink); } .chip.b { background: var(--team-b); }
 
     /* players */
     .players td { font-size: 20px; height: 48px; }
@@ -238,6 +239,13 @@
         h('div', { class: 'bar-track b' }, h('div', { class: 'bar-fill', style: `width:${(b / max) * 100}%` })),
         h('span', { class: 'bar-v b num', text: row.B_text, style: better === 'B' ? '' : 'opacity:.75' }));
     });
+    const upcoming = (d.map_plan || []).filter((m) => m.status !== 'done').map((m) => h('tr', { style: m.status === 'next' ? '' : 'opacity:.5' },
+      h('td', { class: 'num', text: m.number }),
+      h('td', { class: 'name', text: m.map }),
+      h('td', { class: 'mech', text: m.mode || '' }),
+      h('td', {}, m.status === 'next' ? h('span', { class: 'chip next', text: 'Up next' }) : ''),
+      h('td', { class: 'r', text: '' }),
+      h('td', { class: 'mech', text: '' })));
     const hist = d.history.slice(-9).map((m) => h('tr', {},
       h('td', { class: 'num', text: m.number }),
       h('td', { class: 'name', text: m.map || '—' }),
@@ -251,7 +259,7 @@
         h('div', { class: 'card' }, bars),
         h('div', { class: 'card hist' },
           h('div', { class: 'tbl-head', style: '--c:var(--dim)' }, 'Match results'),
-          table(['#', 'Map', 'Mode', 'Winner', 'Score', 'MVP'], hist))),
+          table(['#', 'Map', 'Mode', 'Winner', 'Score', 'MVP'], hist.concat(upcoming).slice(0, 12)))),
     ];
   }
 
@@ -303,6 +311,8 @@
     $('h-wins-a').textContent = d.teams.A.wins;
     $('h-wins-b').textContent = d.teams.B.wins;
     $('h-next').textContent = d.matches_played ? `Up next: Match ${d.matches_played + 1}` : 'Starting soon';
+    const next = (d.map_plan || []).find((m) => m.status === 'next');
+    if (next) $('h-next').textContent += ` · ${next.map}`;
     $('h-series').textContent = d.series.name;
   }
 
@@ -311,7 +321,7 @@
     for (const page of d.pages) {
       const section = $(`page-${page}`);
       const content = d.series ? BUILDERS[page](d) : null;
-      const key = JSON.stringify(content ? [d.teams, page === 'recap' ? d.last_match : page === 'teams' ? [d.comparison, d.history] : d[page]] : null);
+      const key = JSON.stringify(content ? [d.teams, page === 'recap' ? d.last_match : page === 'teams' ? [d.comparison, d.history, d.map_plan] : d[page]] : null);
       if (rendered[page] !== key) {
         rendered[page] = key;
         section.replaceChildren(...(content || []));
