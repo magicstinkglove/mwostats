@@ -16,6 +16,8 @@
     .spot-team[data-team="A"] .spot-btn.active { outline-color: var(--team-a); }
     .spot-team[data-team="B"] .spot-btn.active { outline-color: var(--team-b); }
     .url-box { display: flex; gap: 8px; margin-top: 10px; }
+    .url-box.top { margin-top: 0; }
+    .obs-hint { margin: 6px 0 12px; }
     .url-box input { flex: 1; font-family: var(--mono); font-size: 12px; padding: 7px 9px; }
     /* Switches that sit on the scene previews, next to the part they control. */
     .ps {
@@ -115,6 +117,11 @@
   <section class="panel">
     <div class="panel-head"><h2>In-game overlay</h2></div>
     <div class="panel-body">
+      <div class="url-box top">
+        <input id="overlay-url" readonly>
+        <button id="copy-url" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint obs-hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080.</p>
       <div class="preview" id="preview">
         <iframe id="preview-frame" title="Overlay preview"></iframe>
         <button class="ps" data-el="score" style="left:76%;top:2.5%">Scorebug</button>
@@ -131,17 +138,17 @@
       </div>
       <p class="hint">Click a pilot to slide their player card on stream; click again, or press Esc, to hide it.</p>
 
-      <div class="url-box">
-        <input id="overlay-url" readonly>
-        <button id="copy-url" class="btn btn-primary">Copy</button>
-      </div>
-      <p class="hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080.</p>
     </div>
   </section>
 
   <section class="panel">
     <div class="panel-head"><h2>Between-games scene</h2></div>
     <div class="panel-body">
+      <div class="url-box top">
+        <input id="inter-url" readonly>
+        <button id="copy-inter" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint obs-hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it between games.</p>
       <div class="preview" id="inter-preview">
         <iframe id="inter-frame" title="Between-games preview"></iframe>
         <div class="ps-pages" id="page-btns">
@@ -154,25 +161,20 @@
       </div>
       <p class="hint">Pick a page at the bottom of the preview to hold it, or Rotate to cycle every 15 seconds (add <code>?rotate=20</code> to the URL to change that).</p>
 
-      <div class="url-box">
-        <input id="inter-url" readonly>
-        <button id="copy-inter" class="btn btn-primary">Copy</button>
-      </div>
-      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it between games.</p>
     </div>
   </section>
 
   <section class="panel">
     <div class="panel-head"><h2>Map rotation scene</h2></div>
     <div class="panel-body">
-      <div class="preview" id="maps-preview">
-        <iframe id="maps-frame" title="Map rotation preview"></iframe>
-      </div>
-      <div class="url-box">
+      <div class="url-box top">
         <input id="maps-url" readonly>
         <button id="copy-maps" class="btn btn-primary">Copy</button>
       </div>
-      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it before each drop.</p>
+      <p class="hint obs-hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it before each drop.</p>
+      <div class="preview" id="maps-preview">
+        <iframe id="maps-frame" title="Map rotation preview"></iframe>
+      </div>
       <div class="panel-subhead" style="margin-top:14px">
         <h3>Map order</h3>
         <button id="add-map" class="btn">+ Add map</button>
