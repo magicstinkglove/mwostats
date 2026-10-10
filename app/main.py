@@ -14,8 +14,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import ConfigError, get_settings
 from .db import init_db
+from .live import NotifyOnWrite
 from .metrics import descriptors  # noqa: F401  (import triggers module discovery)
-from .routes import matches, metrics, players, series, settings as settings_routes
+from .routes import matches, metrics, overlay, players, series, settings as settings_routes
 from .routes.deps import get_conn
 from .service import token_status
 
@@ -35,11 +36,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(NotifyOnWrite)
 app.include_router(matches.router)
 app.include_router(series.router)
 app.include_router(metrics.router)
 app.include_router(settings_routes.router)
 app.include_router(players.router)
+app.include_router(overlay.router)
 
 
 @app.get("/api/health")
@@ -59,9 +62,37 @@ def health(conn=Depends(get_conn)) -> dict:
     }
 
 
+# OBS and browsers otherwise keep serving a stale page after an update.
+_NO_CACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+    return FileResponse(WEB_DIR / "index.html", headers=_NO_CACHE)
+
+
+@app.get("/overlay")
+def overlay_page() -> FileResponse:
+    """Transparent page for an OBS browser source."""
+    return FileResponse(WEB_DIR / "overlay.html", headers=_NO_CACHE)
+
+
+@app.get("/intermission")
+def intermission_page() -> FileResponse:
+    """Full-screen between-games scene for OBS."""
+    return FileResponse(WEB_DIR / "intermission.html", headers=_NO_CACHE)
+
+
+@app.get("/maps")
+def maps_page() -> FileResponse:
+    """Full-screen map rotation scene for OBS."""
+    return FileResponse(WEB_DIR / "maps.html", headers=_NO_CACHE)
+
+
+@app.get("/caster")
+def caster_page() -> FileResponse:
+    """Caster controls for the overlay: live series and player spotlight."""
+    return FileResponse(WEB_DIR / "caster.html", headers=_NO_CACHE)
 
 
 if WEB_DIR.exists():

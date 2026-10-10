@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Caster Controls · MWO Match Stats</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .caster main { max-width: 1180px; }
+    .cast-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .spot-team h3 { margin: 0 0 8px; font-size: 14px; }
+    .spot-team[data-team="A"] h3 { color: var(--team-a); }
+    .spot-team[data-team="B"] h3 { color: var(--team-b); }
+    .spot-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .spot-btn.active { outline: 2px solid var(--text); background: var(--panel); }
+    .spot-team[data-team="A"] .spot-btn.active { outline-color: var(--team-a); }
+    .spot-team[data-team="B"] .spot-btn.active { outline-color: var(--team-b); }
+    .url-box { display: flex; gap: 8px; margin-top: 10px; }
+    .url-box.top { margin-top: 0; }
+    .obs-hint { margin: 6px 0 12px; }
+    .url-box input { flex: 1; font-family: var(--mono); font-size: 12px; padding: 7px 9px; }
+    /* Switches that sit on the scene previews, next to the part they control. */
+    .ps {
+      position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 7px;
+      font: inherit; font-size: 11px; font-weight: 600; color: #fff; cursor: pointer; white-space: nowrap;
+      padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25);
+      background: rgba(13,17,23,.88); box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    .ps::before {
+      content: ""; width: 24px; height: 14px; border-radius: 999px; flex: none;
+      background: #4a5361 radial-gradient(circle at 7px 7px, #c9d1d9 5px, transparent 5.5px);
+      transition: background .15s;
+    }
+    .ps.on { border-color: var(--ok); }
+    .ps.on::before { background: var(--ok) radial-gradient(circle at 17px 7px, #fff 5px, transparent 5.5px); }
+    .ps:not(.on) { color: #b9c1cb; }
+    .ps-pages {
+      position: absolute; z-index: 2; left: 3%; bottom: 1.5%; display: flex; gap: 4px;
+      padding: 3px; border-radius: 8px; background: rgba(13,17,23,.92); border: 1px solid rgba(255,255,255,.2);
+    }
+    .ps-page { font: inherit; font-size: 11px; color: #c9d1d9; background: none; border: 0; border-radius: 5px; padding: 4px 9px; cursor: pointer; }
+    .ps-page:hover { background: rgba(255,255,255,.08); }
+    .ps-page.active { background: var(--team-a); color: #1a1205; font-weight: 700; }
+    .panel-subhead { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 10px; }
+    .panel-subhead h3 { margin: 0; font-size: 14px; }
+    .preview {
+      position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px;
+      border: 1px solid var(--border);
+      background: repeating-conic-gradient(#1b222c 0 25%, #141a22 0 50%) 0 0 / 32px 32px;
+    }
+    .preview iframe { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; border: 0; transform-origin: 0 0; }
+    .name-input { width: 100%; box-sizing: border-box; padding: 7px 9px; }
+    .name-input, .url-box input {
+      font: inherit; font-size: 13px; color: var(--text);
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .url-box input { font-family: var(--mono); font-size: 12px; }
+    .map-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 6px; }
+    .map-row {
+      display: grid; grid-template-columns: 28px 30px 1fr 140px 170px 200px 36px; align-items: center; gap: 10px;
+      padding: 6px 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+    }
+    .map-row.dragging { opacity: .4; }
+    .map-row.drop-before { box-shadow: 0 -3px 0 var(--team-a); }
+    .map-row.drop-after { box-shadow: 0 3px 0 var(--team-a); }
+    .map-row .grip { cursor: grab; color: var(--muted); font-size: 18px; text-align: center; user-select: none; }
+    .map-row .idx { color: var(--muted); font-family: var(--mono); font-size: 12px; text-align: right; }
+    .map-row input, .map-row select {
+      font: inherit; font-size: 13px; color: var(--text); background: var(--panel);
+      border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; box-sizing: border-box;
+    }
+    .map-row .status { font-size: 12px; color: var(--muted); }
+    .map-row input.mid { font-family: var(--mono); font-size: 12px; }
+    .map-row .status.done { color: var(--ok); }
+    .off-plan { font-size: 12px; color: var(--warn); margin: 8px 0 0; }
+    .map-row .status.next { color: var(--text); font-weight: 600; }
+    .map-row .remove { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 6px; }
+    .map-row .remove:hover { color: var(--danger); background: rgba(248,81,73,.12); }
+    .map-empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+    .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+    @media (max-width: 800px) { .cast-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="caster">
+
+<div class="app-header">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▞</span>
+      <div>
+        <h1>Caster Controls</h1>
+        <p class="sub">Drive the stream overlay. Changes show on stream right away.</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <a class="btn btn-ghost" href="/">← Back to stats</a>
+    </div>
+  </header>
+</div>
+
+<div id="banner" class="banner" hidden></div>
+
+<main>
+  <section class="panel">
+    <div class="panel-head"><h2>Live series</h2><span id="live-pill" class="pill">—</span></div>
+    <div class="panel-body">
+      <label class="field-label" for="series-select">Which series the overlay shows</label>
+      <select id="series-select"></select>
+      <p class="hint">"Newest series" follows whatever you create next, so the OBS source never needs touching on league night.</p>
+      <div class="cast-grid" style="margin-top:14px">
+        <div><label class="field-label" for="name-a">Team A name on stream</label><input id="name-a" class="name-input" data-team="A"></div>
+        <div><label class="field-label" for="name-b">Team B name on stream</label><input id="name-b" class="name-input" data-team="B"></div>
+      </div>
+      <p class="hint">Changes only the overlay; the stats keep the app's names. Leave blank to use the app's name. Saved per series.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>In-game overlay</h2></div>
+    <div class="panel-body">
+      <div class="url-box top">
+        <input id="overlay-url" readonly>
+        <button id="copy-url" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint obs-hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080.</p>
+      <div class="preview" id="preview">
+        <iframe id="preview-frame" title="Overlay preview"></iframe>
+        <button class="ps" data-el="score" style="left:76%;top:2.5%">Scorebug</button>
+        <button class="ps" data-el="last" style="left:75%;top:9%">Last match</button>
+        <button class="ps" data-el="sidebars" style="left:1%;top:9%">Team sidebars</button>
+        <button class="ps" data-el="leaders" style="right:1.5%;top:60%">Series leaders</button>
+        <button class="ps" id="ps-spot" style="left:3%;top:76%">Player card</button>
+      </div>
+      <p class="hint">Flip the switches on the preview to show or hide each part on stream; each one eases in and out.</p>
+
+      <div class="cast-grid" style="margin-top:14px">
+        <div class="spot-team" data-team="A"><h3 id="spot-name-a">Team A</h3><div class="spot-list" id="spot-list-a"></div></div>
+        <div class="spot-team" data-team="B"><h3 id="spot-name-b">Team B</h3><div class="spot-list" id="spot-list-b"></div></div>
+      </div>
+      <p class="hint">Click a pilot to slide their player card on stream; click again, or press Esc, to hide it.</p>
+
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Between-games scene</h2></div>
+    <div class="panel-body">
+      <div class="url-box top">
+        <input id="inter-url" readonly>
+        <button id="copy-inter" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint obs-hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it between games.</p>
+      <div class="preview" id="inter-preview">
+        <iframe id="inter-frame" title="Between-games preview"></iframe>
+        <div class="ps-pages" id="page-btns">
+          <button class="ps-page" data-page="">Rotate</button>
+          <button class="ps-page" data-page="recap">Last match</button>
+          <button class="ps-page" data-page="teams">Head to head</button>
+          <button class="ps-page" data-page="players">Pilots</button>
+          <button class="ps-page" data-page="awards">Awards</button>
+        </div>
+      </div>
+      <p class="hint">Pick a page at the bottom of the preview to hold it, or Rotate to cycle every 15 seconds (add <code>?rotate=20</code> to the URL to change that).</p>
+
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Map rotation scene</h2></div>
+    <div class="panel-body">
+      <div class="url-box top">
+        <input id="maps-url" readonly>
+        <button id="copy-maps" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint obs-hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it before each drop.</p>
+      <div class="preview" id="maps-preview">
+        <iframe id="maps-frame" title="Map rotation preview"></iframe>
+      </div>
+      <div class="panel-subhead" style="margin-top:14px">
+        <h3>Map order</h3>
+        <button id="add-map" class="btn">+ Add map</button>
+      </div>
+      <ol class="map-list" id="map-list"></ol>
+      <datalist id="map-choices"></datalist>
+      <p class="off-plan" id="off-plan" hidden></p>
+      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Paste each match's ID on its map as it finishes; leave the map blank and it fills in from the match. Matches added in the stats app instead tick off the planned map they were played on; one on a map that isn't planned is listed in yellow.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  let snap = null;
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.detail || `${response.status} ${response.statusText}`);
+    return body;
+  }
+
+  function banner(message) {
+    const node = $('banner');
+    node.hidden = !message;
+    node.className = 'banner error';
+    node.textContent = message || '';
+  }
+
+  const FRAMES = ['preview-frame', 'inter-frame', 'maps-frame'];
+  // Tell the previews to refetch now rather than on their next poll.
+  function nudgePreviews() {
+    for (const id of FRAMES) {
+      const win = $(id).contentWindow;
+      if (win) win.postMessage('mwo-changed', location.origin);
+    }
+  }
+
+  async function update(changes) {
+    try {
+      snap = await api('/api/overlay', { method: 'PUT', body: JSON.stringify(changes) });
+      banner('');
+      render();
+      nudgePreviews();
+    } catch (err) { banner(err.message); }
+  }
+
+  /* ---------------------------------------------------------- map order */
+
+  // `plan` is the caster's working copy; it only syncs from the server when the
+  // list isn't being edited, so a poll never clobbers a half-typed map name.
+  let plan = [];
+  let planSeries = null;
+  let saveTimer = null;
+  let dragFrom = null;
+
+  function planEditing() {
+    return dragFrom !== null || saveTimer !== null || $('map-list').contains(document.activeElement);
+  }
+
+  function savePlan(delay = 0) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      saveTimer = null;
+      await update({ map_plan: plan.filter((p) => p.map.trim()) });
+    }, delay);
+  }
+
+  function syncPlanFromServer() {
+    if (!snap || !snap.series) { plan = []; planSeries = null; renderPlan(); return; }
+    const server = (snap.map_plan || []).map((p) => ({ map: p.map, mode: p.mode || '', match_id: p.match_id || '' }));
+    const blanks = plan.filter((p) => !p.map.trim()).length;
+    const local = plan.filter((p) => p.map.trim());
+    if (planSeries !== snap.series.id || JSON.stringify(server) !== JSON.stringify(local)) {
+      plan = server.concat(planSeries === snap.series.id ? Array.from({ length: blanks }, () => ({ map: '', mode: '', match_id: '' })) : []);
+      planSeries = snap.series.id;
+    }
+    renderPlan();
+  }
+
+  function statusFor(index) {
+    const slot = (snap && snap.map_plan || [])[index];
+    if (!slot) return { cls: '', text: '' };
+    if (slot.status === 'done') {
+      return { cls: 'done', text: `${slot.winner_name ? `✓ ${slot.winner_name}` : '✓ Played'} · match ${slot.match_number}` };
+    }
+    if (slot.status === 'next') return { cls: 'next', text: 'Up next' };
+    return { cls: '', text: '' };
+  }
+
+  function renderPlan() {
+    const list = $('map-list');
+    const off = (snap && snap.off_plan) || [];
+    $('off-plan').hidden = !off.length;
+    $('off-plan').textContent = off.length
+      ? `Not in the plan: ${off.map((m) => `match ${m.number} (${m.map})`).join(', ')}` : '';
+    $('add-map').disabled = !(snap && snap.series);
+    $('map-choices').replaceChildren(...((snap && snap.map_choices) || []).map((m) => new Option(m)));
+    if (!plan.length) {
+      list.replaceChildren(Object.assign(document.createElement('li'), {
+        className: 'map-empty', textContent: snap && snap.series ? 'No maps yet. Add the first one.' : 'No series yet.',
+      }));
+      return;
+    }
+    list.replaceChildren(...plan.map((slot, index) => {
+      const row = document.createElement('li');
+      row.className = 'map-row';
+      row.draggable = true;
+      row.dataset.index = index;
+
+      const grip = Object.assign(document.createElement('span'), { className: 'grip', textContent: '⠿', title: 'Drag to reorder' });
+      const idx = Object.assign(document.createElement('span'), { className: 'idx', textContent: index + 1 });
+
+      const map = Object.assign(document.createElement('input'), { value: slot.map, placeholder: 'Pick or type a map' });
+      map.setAttribute('list', 'map-choices');
+      map.oninput = () => { slot.map = map.value; savePlan(600); };
+      map.onchange = () => savePlan(0);
+
+      const mode = document.createElement('select');
+      mode.append(new Option('Any mode', ''), ...((snap && snap.mode_choices) || []).map((m) => new Option(m, m)));
+      mode.value = slot.mode || '';
+      mode.onchange = () => { slot.mode = mode.value; savePlan(0); };
+
+      // The match played on this map: paste its ID and it's fetched and added to the series.
+      const mid = Object.assign(document.createElement('input'), { className: 'mid', value: slot.match_id || '', placeholder: 'Match ID' });
+      mid.onchange = () => setSlotMatch(index, mid.value.trim(), status);
+      mid.onkeydown = (e) => { if (e.key === 'Enter') mid.blur(); e.stopPropagation(); };
+
+      const st = statusFor(index);
+      const status = Object.assign(document.createElement('span'), { className: `status ${st.cls}`, textContent: st.text });
+
+      const remove = Object.assign(document.createElement('button'), { className: 'remove', textContent: '×', title: 'Remove' });
+      remove.onclick = () => { plan.splice(index, 1); renderPlan(); savePlan(0); };
+
+      for (const el of [map, mode, mid, remove]) {
+        // Typing or clicking in a control shouldn't start a row drag.
+        el.onmousedown = () => { row.draggable = false; };
+        el.onblur = () => { row.draggable = true; };
+      }
+      map.onkeydown = (e) => { if (e.key === 'Enter') map.blur(); e.stopPropagation(); };
+
+      row.ondragstart = (e) => { dragFrom = index; row.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+      row.ondragend = () => { dragFrom = null; renderPlan(); };
+      row.ondragover = (e) => {
+        if (dragFrom === null) return;
+        e.preventDefault();
+        const after = e.offsetY > row.clientHeight / 2;
+        row.classList.toggle('drop-before', !after);
+        row.classList.toggle('drop-after', after);
+      };
+      row.ondragleave = () => row.classList.remove('drop-before', 'drop-after');
+      row.ondrop = (e) => {
+        e.preventDefault();
+        if (dragFrom === null) return;
+        let to = index + (e.offsetY > row.clientHeight / 2 ? 1 : 0);
+        const [moved] = plan.splice(dragFrom, 1);
+        if (dragFrom < to) to -= 1;
+        plan.splice(to, 0, moved);
+        dragFrom = null;
+        renderPlan();
+        savePlan(0);
+      };
+
+      row.append(grip, idx, map, mode, mid, status, remove);
+      return row;
+    }));
+  }
+
+  async function setSlotMatch(index, matchId, status) {
+    clearTimeout(saveTimer);
+    saveTimer = 'busy';  // hold server syncs until this lands
+    status.className = 'status';
+    status.textContent = matchId ? 'Fetching match…' : '';
+    try {
+      snap = await api('/api/overlay/map-plan/match', {
+        method: 'POST', body: JSON.stringify({ map_plan: plan, index, match_id: matchId || null }),
+      });
+      banner('');
+      saveTimer = null;
+      planSeries = null;  // take the server's copy, which may have filled in the map
+      syncPlanFromServer();
+      render();
+      nudgePreviews();
+    } catch (err) {
+      saveTimer = null;
+      banner(err.message);
+      renderPlan();
+    }
+  }
+
+  $('add-map').onclick = () => {
+    plan.push({ map: '', mode: '', match_id: '' });
+    renderPlan();
+    const inputs = $('map-list').querySelectorAll('input');
+    inputs[inputs.length - 1].focus();
+  };
+
+  async function loadSeries() {
+    const { series } = await api('/api/series');
+    const select = $('series-select');
+    const options = [new Option('Newest series (auto)', '')];
+    for (const s of series.slice().sort((a, b) => b.id - a.id)) {
+      options.push(new Option(`${s.name} (${s.match_count} matches)`, String(s.id)));
+    }
+    select.replaceChildren(...options);
+  }
+
+  function isOn(el) {
+    return el === 'sidebars' ? Boolean(snap.state.sidebars) : snap.state.elements[el] !== false;
+  }
+
+  function render() {
+    if (!snap) return;
+    if (!planEditing()) syncPlanFromServer();
+    $('series-select').value = snap.state.series_id === null ? '' : String(snap.state.series_id);
+    for (const btn of document.querySelectorAll('#page-btns .ps-page')) {
+      btn.classList.toggle('active', (btn.dataset.page || null) === (snap.state.intermission_page || null));
+    }
+    for (const chip of document.querySelectorAll('.ps[data-el]')) {
+      chip.classList.toggle('on', isOn(chip.dataset.el));
+    }
+    const spot = $('ps-spot');
+    spot.classList.toggle('on', Boolean(snap.state.spotlight));
+    const pick = snap.state.spotlight || spotPick();
+    spot.textContent = pick ? `Player card: ${pick}` : 'Player card: no pilots yet';
+    $('live-pill').textContent = snap.series
+      ? `${snap.series.name} · ${snap.teams.A.wins}–${snap.teams.B.wins}` : 'No series yet';
+
+    for (const team of ['A', 'B']) {
+      const input = $(`name-${team.toLowerCase()}`);
+      input.disabled = !snap.teams;
+      if (snap.teams && document.activeElement !== input) {
+        input.placeholder = snap.teams[team].app_name;
+        input.value = snap.teams[team].overlay_name || '';
+      }
+      const list = $(`spot-list-${team.toLowerCase()}`);
+      $(`spot-name-${team.toLowerCase()}`).textContent = snap.teams ? snap.teams[team].name : `Team ${team}`;
+      const names = snap.rosters ? snap.rosters[team] : [];
+      list.replaceChildren(...names.map((name) => {
+        const btn = document.createElement('button');
+        btn.className = `btn spot-btn${snap.state.spotlight === name ? ' active' : ''}`;
+        btn.textContent = name;
+        btn.onclick = () => update({ spotlight: snap.state.spotlight === name ? null : name });
+        return btn;
+      }));
+      if (!names.length) list.textContent = 'No players yet.';
+    }
+  }
+
+  // The previews load with a fresh query string so the browser never shows a cached copy of an older page.
+  const FRESH = `?v=${Date.now()}`;
+
+  function refreshUrl() {
+    const url = `${location.origin}/overlay`;
+    $('overlay-url').value = url;
+    if (!$('preview-frame').src) $('preview-frame').src = url + FRESH;
+  }
+
+  function fitPreview() {
+    for (const [box, frame] of [['preview', 'preview-frame'], ['inter-preview', 'inter-frame'], ['maps-preview', 'maps-frame']]) {
+      $(frame).style.transform = `scale(${$(box).clientWidth / 1920})`;
+    }
+  }
+
+  $('series-select').onchange = (e) => update({ series_id: e.target.value ? Number(e.target.value) : null });
+  for (const input of document.querySelectorAll('.name-input')) {
+    input.onchange = () => update({ team_names: { [input.dataset.team]: input.value } });
+    input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); };
+  }
+  for (const chip of document.querySelectorAll('.ps[data-el]')) {
+    chip.onclick = () => {
+      if (!snap) return;
+      const el = chip.dataset.el, next = !isOn(el);
+      update(el === 'sidebars' ? { sidebars: next } : { elements: { [el]: next } });
+    };
+  }
+  // Who the player card switch brings up: the last pilot shown, if they're still on a
+  // roster, otherwise the first pilot listed.
+  function spotPick() {
+    if (!snap || !snap.rosters) return null;
+    const all = [...snap.rosters.A, ...snap.rosters.B];
+    return all.includes(snap.state.last_spotlight) ? snap.state.last_spotlight : all[0] || null;
+  }
+
+  $('ps-spot').onclick = () => {
+    if (!snap) return;
+    if (snap.state.spotlight) update({ spotlight: null });
+    else if (spotPick()) update({ spotlight: spotPick() });
+    else $('spot-list-a').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
+  function copyButton(buttonId, inputId) {
+    $(buttonId).onclick = async () => {
+      try { await navigator.clipboard.writeText($(inputId).value); $(buttonId).textContent = 'Copied'; }
+      catch (_) { $(inputId).select(); }
+      setTimeout(() => { $(buttonId).textContent = 'Copy'; }, 1500);
+    };
+  }
+  copyButton('copy-url', 'overlay-url');
+  copyButton('copy-inter', 'inter-url');
+  copyButton('copy-maps', 'maps-url');
+  for (const btn of document.querySelectorAll('#page-btns .ps-page')) {
+    btn.onclick = () => update({ intermission_page: btn.dataset.page || null });
+  }
+  window.addEventListener('resize', fitPreview);
+
+  async function poll() {
+    try { snap = await api('/api/overlay'); render(); } catch (_) { /* transient */ }
+  }
+
+  (async function boot() {
+    try { await loadSeries(); } catch (err) { banner(err.message); }
+    refreshUrl();
+    $('inter-url').value = `${location.origin}/intermission`;
+    $('inter-frame').src = `/intermission${FRESH}`;
+    $('maps-url').value = `${location.origin}/maps`;
+    $('maps-frame').src = `/maps${FRESH}`;
+    fitPreview();
+    await poll();
+    // Rosters and the score move as matches are added in the main app: the server
+    // pushes a note on every change, which also refreshes the previews.
+    if (window.EventSource) {
+      new EventSource('/api/overlay/events').onmessage = () => { poll(); nudgePreviews(); };
+    }
+    setInterval(poll, 4000);
+    setInterval(() => loadSeries().then(render).catch(() => {}), 15000);
+  })();
+})();
+</script>
+</body>
+</html>

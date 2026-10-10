@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MWO Overlay</title>
+  <!-- OBS browser source: 1920x1080, transparent. Pick elements with ?show=score,last,leaders,spotlight,sidebars
+       (default: all). Spotlight and sidebars appear only when switched on from /caster; polls the app every 2s. -->
+  <style>
+    /* Laid out at 1920x1080 and scaled to the source size (see fit() below), so any OBS
+       browser-source size or canvas resolution shows the whole layout. */
+    body { transform-origin: 0 0; }
+    :root {
+      --team-a: #f0a04b;
+      --team-b: #58b6dd;
+      --ink: #f4f6f8;
+      --dim: #a7b0bb;
+      --plate: rgba(11, 15, 20, 0.88);
+      --plate-2: rgba(22, 28, 36, 0.92);
+      --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    }
+    html, body { margin: 0 !important; background: transparent; overflow: hidden; }
+    body { width: 1920px; height: 1080px; position: relative; font-family: var(--font); color: var(--ink); }
+    [hidden] { display: none !important; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    /* ---------------------------------------------------- scorebug */
+    #score {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      display: grid; grid-template-columns: 340px 64px 150px 64px 340px; height: 64px;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
+    }
+    .sb-name {
+      display: flex; align-items: center; padding: 0 22px; background: var(--plate);
+      font-size: 28px; font-weight: 700; letter-spacing: .5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .sb-name.a { justify-content: flex-end; clip-path: polygon(18px 0, 100% 0, 100% 100%, 0 100%); }
+    .sb-name.b { clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%); }
+    .sb-wins { display: grid; place-items: center; font-size: 40px; font-weight: 800; color: #10151b; }
+    .sb-wins.a { background: var(--team-a); }
+    .sb-wins.b { background: var(--team-b); }
+    .sb-mid {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: var(--plate-2); line-height: 1.1;
+    }
+    .sb-mid .label { font-size: 13px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; }
+    .sb-mid .value { font-size: 24px; font-weight: 700; }
+    .pop { animation: pop .7s ease-out; }
+    @keyframes pop { 0% { transform: scale(1.6); filter: brightness(1.8); } 100% { transform: scale(1); } }
+
+    /* ---------------------------------------------------- last match strip */
+    #last {
+      position: absolute; top: 90px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 18px; padding: 8px 22px;
+      background: var(--plate); font-size: 19px; white-space: nowrap;
+      border-bottom: 3px solid var(--accent, var(--dim));
+    }
+    #last .tag { color: var(--dim); text-transform: uppercase; letter-spacing: 1.5px; font-size: 14px; }
+    #last .win { font-weight: 700; color: var(--accent, var(--ink)); }
+    #last .mvp b { color: var(--ink); }
+    #last .sep { width: 1px; height: 20px; background: rgba(255,255,255,.18); }
+
+    /* ---------------------------------------------------- leaders */
+    #leaders {
+      position: absolute; right: 28px; bottom: 150px; width: 330px;
+      background: var(--plate); filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
+    }
+    #leaders h3 {
+      margin: 0; padding: 8px 16px; font-size: 14px; letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--dim); background: var(--plate-2);
+    }
+    .ld-row { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 10px; padding: 9px 16px; border-left: 5px solid var(--c); }
+    .ld-row + .ld-row { border-top: 1px solid rgba(255,255,255,.07); }
+    .ld-label { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+    .ld-name { font-size: 19px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ld-value { font-size: 22px; font-weight: 800; }
+
+    /* ---------------------------------------------------- team sidebars */
+    .sidebar {
+      position: absolute; top: 170px; width: 330px; background: var(--plate);
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
+    }
+    #side-a { left: 0; border-left: 6px solid var(--team-a); transform: translateX(-110%); }
+    #side-b { right: 0; border-right: 6px solid var(--team-b); transform: translateX(110%); }
+    #side-a.on, #side-b.on { transform: translateX(0); }
+    .sd-head, .sd-row { display: grid; grid-template-columns: 1fr 62px 40px 58px; align-items: center; gap: 6px; padding: 0 14px; }
+    .sd-head { padding-top: 9px; padding-bottom: 9px; background: var(--plate-2); }
+    .sd-team { font-size: 19px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #side-a .sd-team { color: var(--team-a); }
+    #side-b .sd-team { color: var(--team-b); }
+    .sd-col { font-size: 11px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; text-align: right; }
+    .sd-row { height: 42px; }
+    .sidebar.tight .sd-row { height: 34px; }  /* big rosters stay clear of the series leaders box */
+    .sd-row + .sd-row { border-top: 1px solid rgba(255,255,255,.07); }
+    .sd-name { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sd-v { font-size: 18px; font-weight: 700; text-align: right; }
+
+    /* ---------------------------------------------------- spotlight lower third */
+    #spotlight {
+      position: absolute; left: 60px; bottom: 70px; display: flex; align-items: stretch;
+      filter: drop-shadow(0 6px 18px rgba(0,0,0,.5));
+      transform: translateX(-120%);
+    }
+    #spotlight.on { transform: translateX(0); }
+    .sp-bar { width: 10px; background: var(--c); }
+    .sp-main { background: var(--plate); padding: 12px 26px 12px 20px; min-width: 420px; }
+    .sp-team { font-size: 16px; letter-spacing: 1.5px; color: var(--c); font-weight: 700; }
+    .sp-name { font-size: 44px; font-weight: 800; line-height: 1.05; }
+    .sp-mech { font-size: 17px; color: var(--dim); margin-top: 2px; }
+    .sp-stats { display: flex; background: var(--plate-2); }
+    .sp-stat { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 22px; min-width: 80px; }
+    .sp-stat + .sp-stat { border-left: 1px solid rgba(255,255,255,.08); }
+    .sp-stat .v { font-size: 34px; font-weight: 800; }
+    .sp-stat .l { font-size: 12px; color: var(--dim); letter-spacing: 1.5px; text-transform: uppercase; }
+    /* ---------------------------------------------------- transitions
+       Everything eases in (fast start, soft landing) and eases out (slow start, quick exit).
+       Hidden elements stay in the layout, just invisible, so they can animate both ways. */
+    :root { --enter: cubic-bezier(.2,.8,.2,1); --exit: cubic-bezier(.55,0,.8,.2); }
+    .fx, .sidebar, #spotlight {
+      opacity: 0; visibility: hidden;
+      transition: opacity .3s var(--exit), transform .4s var(--exit), visibility 0s .4s;
+    }
+    .fx.on, .sidebar.on, #spotlight.on {
+      opacity: 1; visibility: visible;
+      transition: opacity .45s var(--enter), transform .6s var(--enter), visibility 0s;
+    }
+    #score.fx { transform: translate(-50%, -130%); }
+    #score.fx.on { transform: translate(-50%, 0); }
+    #last.fx { transform: translate(-50%, -24px); }
+    #last.fx.on { transform: translate(-50%, 0); }
+    #leaders.fx { transform: translateX(120%); }
+    #leaders.fx.on { transform: none; }
+    /* New content (a fresh last match, a different pilot, updated leaders) rises in, one piece after another. */
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    #last > *, .ld-row, .sd-row, .sp-stat { animation: rise .5s var(--enter) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  </style>
+</head>
+<body>
+
+<div id="score" class="fx">
+  <div class="sb-name a" id="sb-name-a"></div>
+  <div class="sb-wins a num" id="sb-wins-a">0</div>
+  <div class="sb-mid"><span class="label" id="sb-mid-label">Match</span><span class="value num" id="sb-mid-value">—</span></div>
+  <div class="sb-wins b num" id="sb-wins-b">0</div>
+  <div class="sb-name b" id="sb-name-b"></div>
+</div>
+
+<div id="last" class="fx"></div>
+
+<div id="leaders" class="fx">
+  <h3>Series leaders</h3>
+  <div id="leaders-rows"></div>
+</div>
+
+<div class="sidebar" id="side-a"></div>
+<div class="sidebar" id="side-b"></div>
+
+<div id="spotlight">
+  <div class="sp-bar"></div>
+  <div class="sp-main">
+    <div class="sp-team" id="sp-team"></div>
+    <div class="sp-name" id="sp-name"></div>
+    <div class="sp-mech" id="sp-mech"></div>
+  </div>
+  <div class="sp-stats" id="sp-stats"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // OBS's built-in browser can be an older Chromium without replaceChildren (Chrome 86+).
+  if (!Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function (...nodes) {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      this.append(...nodes);
+    };
+  }
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1;
+    document.body.style.transform = scale === 1 ? '' : `scale(${scale})`;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  const params = new URLSearchParams(location.search);
+  const ALL = ['score', 'last', 'leaders', 'spotlight', 'sidebars'];
+  // ?show= limits what this particular OBS source may draw (for splitting elements
+  // across sources); what's actually on stream is switched from the caster page.
+  const allowed = new Set((params.get('show') || ALL.join(',')).split(',').map((s) => s.trim()));
+  const shown = { has: (name) => allowed.has(name) && !(current && current.state.elements && current.state.elements[name] === false) };
+  let current = null;
+  const TEAM_COLOR = { A: 'var(--team-a)', B: 'var(--team-b)' };
+  const $ = (id) => document.getElementById(id);
+  const color = (team) => TEAM_COLOR[team] || 'var(--dim)';
+  let previous = {};
+
+  function setText(id, text) {
+    const node = $(id);
+    const value = String(text);
+    if (node.textContent !== value) {
+      const changed = node.textContent !== '';
+      node.textContent = value;
+      if (changed && node.classList.contains('num')) {
+        node.classList.remove('pop'); void node.offsetWidth; node.classList.add('pop');
+      }
+    }
+  }
+
+  function node(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
+  }
+
+  function renderScore(data) {
+    const on = shown.has('score') && Boolean(data.series);
+    $('score').classList.toggle('on', on);
+    if (!on) return;
+    setText('sb-name-a', data.teams.A.name);
+    setText('sb-name-b', data.teams.B.name);
+    setText('sb-wins-a', data.teams.A.wins);
+    setText('sb-wins-b', data.teams.B.wins);
+    const played = data.matches_played;
+    setText('sb-mid-label', played ? 'Next up' : 'Series');
+    setText('sb-mid-value', played ? `Match ${played + 1}` : 'Starting');
+  }
+
+  function renderLast(data) {
+    const last = data.last_match;
+    const box = $('last');
+    const on = shown.has('last') && Boolean(last);
+    box.classList.toggle('on', on);
+    if (!on) return;
+    const key = JSON.stringify(last);
+    if (previous.last === key) return;
+    previous.last = key;
+
+    box.style.setProperty('--accent', color(last.winner));
+    const parts = [node('span', 'tag', `Match ${last.number}`)];
+    const where = [last.map, last.mode].filter(Boolean).join(' · ');
+    if (where) parts.push(node('span', null, where));
+    parts.push(node('span', 'sep'));
+    if (last.winner_name) {
+      const score = last.score && last.score.A !== undefined && last.score.B !== undefined
+        ? `  ${last.score[last.winner]}–${last.score[last.winner === 'A' ? 'B' : 'A']}` : '';
+      parts.push(node('span', 'win', `${last.winner_name} wins${score}`));
+    } else {
+      parts.push(node('span', 'win', 'No result'));
+    }
+    if (last.mvp) {
+      parts.push(node('span', 'sep'));
+      const mvp = node('span', 'mvp');
+      mvp.append(node('span', 'tag', 'MVP  '), node('b', null, last.mvp.username));
+      const line = [last.mvp.mech, `${last.mvp.damage.toLocaleString()} dmg`, `${last.mvp.kills} K`]
+        .filter(Boolean).join(' · ');
+      mvp.append(document.createTextNode(`  ${line}`));
+      parts.push(mvp);
+    }
+    parts.forEach((p, i) => p.style.setProperty('--i', i));
+    box.replaceChildren(...parts);
+  }
+
+  const sidebarsOn = (data) => shown.has('sidebars') && data.series && data.state.sidebars;
+
+  function renderSidebars(data) {
+    const on = sidebarsOn(data);
+    for (const team of ['A', 'B']) {
+      const box = $(`side-${team.toLowerCase()}`);
+      if (!on) { box.classList.remove('on'); continue; }
+      const pilots = data.sidebars[team] || [];
+      box.classList.toggle('tight', pilots.length > 8);
+      const key = JSON.stringify([data.teams[team].name, pilots]);
+      if (previous[`side${team}`] !== key) {
+        previous[`side${team}`] = key;
+        const showSurv = pilots.some((p) => p.survival_rate !== null);
+        const head = node('div', 'sd-head');
+        head.append(node('span', 'sd-team', data.teams[team].name), node('span', 'sd-col', 'Avg Dmg'),
+          node('span', 'sd-col', 'K'), node('span', 'sd-col', showSurv ? 'Surv' : ''));
+        const rows = pilots.map((p, i) => {
+          const row = node('div', 'sd-row');
+          row.style.setProperty('--i', i);
+          row.append(node('span', 'sd-name', p.username), node('span', 'sd-v num', p.avg_damage.toLocaleString()),
+            node('span', 'sd-v num', p.kills),
+            node('span', 'sd-v num', p.survival_rate === null ? '' : `${Math.round(p.survival_rate * 100)}%`));
+          return row;
+        });
+        box.replaceChildren(head, ...rows);
+      }
+      box.classList.add('on');
+    }
+  }
+
+  function renderLeaders(data) {
+    const box = $('leaders');
+    const on = shown.has('leaders') && Boolean(data.leaders && data.leaders.length);
+    box.classList.toggle('on', on);
+    if (!on) return;
+    const key = JSON.stringify(data.leaders);
+    if (previous.leaders === key) return;
+    previous.leaders = key;
+    $('leaders-rows').replaceChildren(...data.leaders.map((l, i) => {
+      const row = node('div', 'ld-row');
+      row.style.setProperty('--i', i);
+      row.style.setProperty('--c', color(l.team));
+      row.append(node('span', 'ld-label', l.label), node('span', 'ld-name', l.username), node('span', 'ld-value num', l.value));
+      return row;
+    }));
+  }
+
+  function renderSpotlight(data) {
+    const box = $('spotlight');
+    const sp = shown.has('spotlight') ? data.spotlight : null;
+    if (!sp) { box.classList.remove('on'); return; }
+
+    const key = JSON.stringify(sp);
+    if (previous.spotlight !== key) {
+      previous.spotlight = key;
+      box.style.setProperty('--c', color(sp.team));
+      $('sp-team').textContent = sp.team_name || '';
+      $('sp-name').textContent = sp.username;
+      $('sp-mech').textContent = sp.top_mech ? `Main mech: ${sp.top_mech}` : '';
+      const stats = [
+        ['Avg Dmg', sp.avg_damage.toLocaleString()],
+        ['Kills', sp.kills],
+        sp.solo_kills !== null ? ['KMDD', sp.solo_kills] : null,
+        sp.survival_rate !== null ? ['Survival', `${Math.round(sp.survival_rate * 100)}%`] : null,
+        ['Drops', sp.matches],
+      ].filter(Boolean);
+      $('sp-stats').replaceChildren(...stats.map(([label, value], i) => {
+        const s = node('div', 'sp-stat');
+        s.style.setProperty('--i', i + 2);
+        s.append(node('span', 'v num', value), node('span', 'l', label));
+        return s;
+      }));
+    }
+    box.classList.add('on');
+  }
+
+  let requestSeq = 0;
+  async function tick() {
+    const seq = ++requestSeq;
+    try {
+      const response = await fetch('/api/overlay', { cache: 'no-store' });
+      if (!response.ok || seq !== requestSeq) return;
+      const data = await response.json();
+      if (seq !== requestSeq) return;
+      current = data;
+      // Each element renders on its own, so one failing never blanks the rest.
+      for (const render of [renderScore, renderLast, renderLeaders, renderSidebars, renderSpotlight]) {
+        try { render(data); } catch (err) {
+          console.error(`overlay: ${render.name} failed`, err);
+          previous = {};  // retry the half-built element on the next poll
+        }
+      }
+    } catch (_) {
+      // App restarting or briefly unreachable: keep the last frame on screen.
+    }
+  }
+
+  // Refetch the moment anything changes: the server pushes a note on every write.
+  // Inside the caster's previews the caster page relays it instead, so the previews
+  // don't each hold a connection open. The interval below stays as the fallback.
+  if (window.parent !== window) {
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data === 'mwo-changed') tick(); });
+  } else if (window.EventSource) {
+    new EventSource('/api/overlay/events').onmessage = () => tick();
+  }
+  tick();
+  setInterval(tick, 2000);
+})();
+</script>
+</body>
+</html>

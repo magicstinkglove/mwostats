@@ -93,6 +93,7 @@ body {
 .btn-primary:hover { background: #ffb663; border-color: #ffb663; }
 .btn-primary:disabled { opacity: .55; cursor: progress; }
 .btn-ghost { background: transparent; }
+a.btn { display: inline-block; text-decoration: none; }
 .btn-icon { font-size: 16px; padding: 6px 11px; line-height: 1; }
 
 select, textarea, input[type=text], input[type=password] {

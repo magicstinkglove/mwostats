@@ -194,3 +194,19 @@ def fmt(value: float, places: int = 1) -> str:
 
 def ratio(numerator: float, denominator: float) -> float:
     return numerator / denominator if denominator else 0.0
+
+
+def extra_num(stat: PlayerStat, *keys: str) -> float | None:
+    """A numeric field the API sends but `normalize` keeps only in `extra`.
+
+    Returns None when absent or unparseable, so callers can tell "0" from "not reported".
+    """
+    for key in keys:
+        value = stat.extra.get(key)
+        if value is None or value == "":
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None

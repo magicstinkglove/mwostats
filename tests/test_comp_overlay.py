@@ -1,0 +1,320 @@
+"""Combat Detail module (extra API fields) and the broadcast overlay endpoints."""
+
+from __future__ import annotations
+
+from app.metrics import get_module
+from app.metrics.base import SeriesContext
+from app.metrics.comp_stats import combat_totals
+from app.models import PlayerStat, Series
+from app.teams import infer_teams
+from tests.test_api import client, create_series  # noqa: F401  (fixture)
+from tests.test_metrics import build_matches
+
+
+def line(**extra) -> PlayerStat:
+    return PlayerStat(match_id="m", username="X", side=1, extra=extra)
+
+
+def test_combat_totals_tells_zero_from_not_reported():
+    totals = combat_totals([
+        line(HealthPercentage=0, KillsMostDamage=1, TeamDamage="12"),
+        line(HealthPercentage=40, KillsMostDamage=2),
+        line(),  # an older payload without the fields
+    ])
+    assert totals["reported"] == 2
+    assert totals["survived"] == 1
+    assert totals["survival_rate"] == 0.5
+    assert totals["avg_health"] == 20
+    assert totals["solo_kills"] == 3
+    assert totals["team_damage"] == 12
+    assert totals["components"] is None
+
+
+def _ctx_with_extras(extras_by_user):
+    matches = build_matches()
+    for match in matches:
+        for p in match.players:
+            p.extra = dict(extras_by_user.get(p.username, {}))
+    series = Series(id=1, name="T", team_a_name="Alpha", team_b_name="Bravo",
+                    match_ids=[m.match_id for m in matches])
+    return SeriesContext(series=series, matches=matches, inference=infer_teams(matches), match_overrides={})
+
+
+def test_comp_stats_awards_name_the_right_pilots():
+    ctx = _ctx_with_extras({
+        "Alice": {"HealthPercentage": 60, "KillsMostDamage": 2, "TeamDamage": 0, "Lance": "1"},
+        "Bob": {"HealthPercentage": 0, "KillsMostDamage": 0, "TeamDamage": 45, "Lance": "1"},
+        "Eve": {"HealthPercentage": 10, "KillsMostDamage": 1, "Lance": "2"},
+        "Fay": {"HealthPercentage": 0, "Lance": "2"},
+    })
+    sections = get_module("comp_stats").compute(ctx)["sections"]
+    awards = {s["label"]: s for s in sections[1]["groups"][0]["stats"]}
+    assert awards["KMDD King"]["name"] == "Alice"
+    assert awards["KMDD King"]["value"] == "4"
+    assert awards["Friendly Fire Award"]["name"] == "Bob"
+    assert awards["Last Mech Standing"]["name"] in {"Alice", "Eve"}  # both survived 2/2
+    assert sections[-1]["title"] == "By lance"
+
+
+def test_comp_stats_without_the_fields_is_a_note():
+    sections = get_module("comp_stats").compute(_ctx_with_extras({}))["sections"]
+    assert [s["type"] for s in sections] == ["note"]
+
+
+# ---------------------------------------------------------------- overlay
+
+
+def test_overlay_with_no_series(client):  # noqa: F811
+    body = client.get("/api/overlay").json()
+    assert body["series"] is None
+
+
+def test_overlay_follows_the_newest_series_and_scores_it(client):  # noqa: F811
+    create_series(client, "Old")
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2 m3"})
+
+    body = client.get("/api/overlay").json()
+    assert body["series"]["name"] == "League Night"
+    assert body["matches_played"] == 3
+    wins = sorted(t["wins"] for t in body["teams"].values())
+    assert sum(wins) == 3
+    assert body["last_match"]["number"] == 3
+    assert body["last_match"]["mvp"]["username"]
+    assert body["leaders"]
+
+
+def test_overlay_spotlight_and_pinned_series(client):  # noqa: F811
+    first = create_series(client, "First")
+    client.post(f"/api/series/{first['id']}/matches", json={"match_ids": "m1 m2"})
+    create_series(client, "Second")
+
+    body = client.put("/api/overlay", json={"series_id": first["id"], "spotlight": "Alice"}).json()
+    assert body["series"]["name"] == "First"
+    assert body["spotlight"]["username"] == "Alice"
+    assert body["spotlight"]["matches"] == 2
+
+    # Changing only the spotlight leaves the pinned series alone.
+    body = client.put("/api/overlay", json={"spotlight": None}).json()
+    assert body["spotlight"] is None
+    assert body["state"]["series_id"] == first["id"]
+    assert body["state"]["last_spotlight"] == "Alice"  # the switch brings her back
+
+    # Switching series clears a spotlight from the old one.
+    client.put("/api/overlay", json={"spotlight": "Alice"})
+    body = client.put("/api/overlay", json={"series_id": None}).json()
+    assert body["series"]["name"] == "Second"
+    assert body["state"]["spotlight"] is None
+    assert body["state"]["last_spotlight"] is None
+
+
+def test_overlay_rejects_unknown_series(client):  # noqa: F811
+    assert client.put("/api/overlay", json={"series_id": 999}).status_code == 404
+
+
+def test_overlay_and_caster_pages_are_served(client):  # noqa: F811
+    assert "OBS" in client.get("/overlay").text
+    assert "Caster Controls" in client.get("/caster").text
+
+
+def test_overlay_team_names_change_only_the_overlay(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+    client.put(f"/api/series/{series['id']}/teams", json={"team_a_name": "[EmP] Emperors", "team_b_name": "Bravo"})
+
+    body = client.put("/api/overlay", json={"team_names": {"A": "  Emperors ", "B": ""}}).json()
+    assert body["teams"]["A"]["name"] == "Emperors"
+    assert body["teams"]["A"]["app_name"] == "[EmP] Emperors"
+    assert body["teams"]["B"]["name"] == "Bravo"
+    assert body["last_match"]["winner_name"] in {"Emperors", "Bravo"}
+
+    # The app's own series and stats keep the real name.
+    assert client.get(f"/api/series/{series['id']}").json()["team_a_name"] == "[EmP] Emperors"
+
+    # Names are per series: a new newest series starts with its own names.
+    create_series(client, "Next Night")
+    assert client.get("/api/overlay").json()["teams"]["A"]["name"] == "Team A"
+
+    # Blank reverts to the app's name.
+    client.put("/api/overlay", json={"series_id": series["id"]})
+    body = client.put("/api/overlay", json={"team_names": {"A": None}}).json()
+    assert body["teams"]["A"]["name"] == "[EmP] Emperors"
+
+
+def test_overlay_sidebars_toggle_and_list_each_team(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+
+    body = client.get("/api/overlay").json()
+    assert body["state"]["sidebars"] is False
+    names = {p["username"] for team in ("A", "B") for p in body["sidebars"][team]}
+    assert names == {"Alice", "Bob", "Cid", "Eve", "Fay", "Gus"}
+    for pilots in body["sidebars"].values():
+        damage = [p["avg_damage"] for p in pilots]
+        assert damage == sorted(damage, reverse=True)
+
+    assert client.put("/api/overlay", json={"sidebars": True}).json()["state"]["sidebars"] is True
+    # Other changes leave the toggle alone.
+    assert client.put("/api/overlay", json={"spotlight": "Alice"}).json()["state"]["sidebars"] is True
+    assert client.put("/api/overlay", json={"sidebars": False}).json()["state"]["sidebars"] is False
+
+
+def test_intermission_breaks_down_the_live_series(client):  # noqa: F811
+    assert client.get("/api/overlay/intermission").json()["series"] is None
+
+    series = create_series(client, "League Night")
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2 m3"})
+    client.put("/api/overlay", json={"team_names": {"A": "Stream Name"}})
+
+    body = client.get("/api/overlay/intermission").json()
+    assert body["pages"] == ["recap", "teams", "players", "awards"]
+    assert "Stream Name" in {t["name"] for t in body["teams"].values()}
+    assert [m["number"] for m in body["history"]] == [1, 2, 3]
+    assert body["last_match"]["box_score"]["A"] and body["last_match"]["box_score"]["B"]
+    assert {r["label"] for r in body["comparison"]} >= {"Avg damage per pilot", "Kills"}
+    pilots = {p["username"] for rows in body["players"].values() for p in rows}
+    assert {"Alice", "Zed", "Eve"} <= pilots
+    titles = [a["title"] for a in body["awards"]]
+    assert "Damage Dealer" in titles and "Biggest Game" in titles
+
+
+def test_intermission_page_can_be_pinned_and_released(client):  # noqa: F811
+    create_series(client)
+    assert client.put("/api/overlay", json={"intermission_page": "awards"}).json()["state"]["intermission_page"] == "awards"
+    assert client.put("/api/overlay", json={"intermission_page": None}).json()["state"]["intermission_page"] is None
+    assert client.put("/api/overlay", json={"intermission_page": "nope"}).status_code == 400
+    assert "Between games" in client.get("/intermission").text
+
+
+def test_map_plan_ticks_off_maps_as_matches_arrive(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    plan = [{"map": "Frozen City", "mode": "Skirmish"}, {"map": "Canyon Network"},
+            {"map": "  "}, {"map": "River City", "mode": "Conquest"}]
+    body = client.put("/api/overlay", json={"map_plan": plan}).json()
+    assert [m["map"] for m in body["map_plan"]] == ["Frozen City", "Canyon Network", "River City"]
+    assert [m["status"] for m in body["map_plan"]] == ["next", "upcoming", "upcoming"]
+    assert "Frozen City" in body["map_choices"] and "Skirmish" in body["mode_choices"]
+
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+    body = client.get("/api/overlay").json()
+    assert [m["status"] for m in body["map_plan"]] == ["done", "done", "next"]
+    assert body["map_plan"][0]["winner_name"]
+    assert body["map_plan"][1]["match_number"] == 2
+    assert body["off_plan"] == []
+    assert client.get("/api/overlay/intermission").json()["map_plan"][2]["status"] == "next"
+
+    # Plans are per series.
+    create_series(client, "Next Night")
+    assert client.get("/api/overlay").json()["map_plan"] == []
+
+
+def test_map_plan_pairs_results_by_map_not_by_position(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    client.put("/api/overlay", json={"map_plan": [{"map": "Canyon Network"}, {"map": "Emerald Taiga"}]})
+    # m1 is on Frozen City (not planned), m2 on Canyon Network (planned first).
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+    body = client.get("/api/overlay").json()
+    assert [m["status"] for m in body["map_plan"]] == ["done", "next"]
+    assert body["map_plan"][0]["match_number"] == 2
+    assert body["map_plan"][1]["winner"] is None  # no result pinned on a map nobody played
+    assert body["off_plan"] == [{"number": 1, "map": "Frozen City"}]
+
+
+def test_map_plan_slots_take_match_ids_in_order(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    plan = [{"map": "Frozen City", "mode": "Skirmish"}, {"map": "", "mode": ""}]
+
+    # A blank row fills its map and mode in from the match.
+    body = client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 1, "match_id": "m2"}).json()
+    assert [(m["map"], m["mode"], m["match_id"], m["status"]) for m in body["map_plan"]] == [
+        ("Frozen City", "Skirmish", None, "next"), ("Canyon Network", "Skirmish", "m2", "done")]
+    assert body["matches_played"] == 1
+    assert "m2" in client.get(f"/api/series/{series['id']}").json()["match_ids"]
+
+    # A pinned match wins over pairing by map: m3 (on Frozen City) isn't pinned, so it ticks
+    # off the Frozen City row, but once m4 is pinned there, m3 is off-plan.
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m3"})
+    body = client.get("/api/overlay").json()
+    assert body["map_plan"][0]["status"] == "done"
+    plan = [{k: m[k] for k in ("map", "mode", "match_id")} for m in body["map_plan"]]
+    body = client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 0, "match_id": "m4"}).json()
+    assert body["map_plan"][0]["match_id"] == "m4"
+    assert [m["map"] for m in body["off_plan"]] == ["Frozen City"]
+
+    # Clearing a slot's match leaves the match in the series.
+    body = client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 1, "match_id": None}).json()
+    assert body["map_plan"][1]["match_id"] is None
+    assert body["matches_played"] == 3
+
+
+def test_map_plan_slot_match_errors(client):  # noqa: F811
+    create_series(client, "League Night")
+    plan = [{"map": "Frozen City"}]
+    assert client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 3, "match_id": "m1"}).status_code == 400
+    assert client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 0, "match_id": "nope"}).status_code == 502
+
+
+def test_api_map_codes_match_planned_names():
+    from app.overlay import _same_map, map_display_name
+
+    assert _same_map("Terra Therma", "TerraThermaQP")
+    assert _same_map("Frozen City", "FrozenCityNight")
+    assert not _same_map("Polar Highlands", "TerraThermaQP")
+    assert map_display_name("PolarHighlands") == "Polar Highlands"
+    assert map_display_name("SomeNewMap") == "SomeNewMap"
+
+
+def test_map_plan_is_capped(client):  # noqa: F811
+    create_series(client)
+    too_many = [{"map": f"Map {i}"} for i in range(21)]
+    assert client.put("/api/overlay", json={"map_plan": too_many}).status_code == 422
+
+
+def test_overlay_elements_switch_on_and_off(client):  # noqa: F811
+    create_series(client)
+    state = client.get("/api/overlay").json()["state"]
+    assert state["elements"] == {"score": True, "last": True, "maps": True, "leaders": True}
+
+    state = client.put("/api/overlay", json={"elements": {"leaders": False}}).json()["state"]
+    assert state["elements"]["leaders"] is False and state["elements"]["score"] is True
+    # Unrelated changes keep the switches as they are.
+    state = client.put("/api/overlay", json={"sidebars": True}).json()["state"]
+    assert state["elements"]["leaders"] is False and state["sidebars"] is True
+    assert client.put("/api/overlay", json={"elements": {"bogus": True}}).status_code == 400
+
+
+def test_writes_bump_the_live_counter_and_reads_do_not(client):  # noqa: F811
+    from app import live
+
+    before = live.version()
+    client.get("/api/overlay")
+    assert live.version() == before
+    client.put("/api/overlay", json={"sidebars": True})
+    assert live.version() == before + 1
+    client.put("/api/overlay", json={"intermission_page": "nope"})  # rejected: no change
+    assert live.version() == before + 1
+
+
+def test_change_stream_sends_one_event_per_change():
+    import asyncio
+
+    from app import live
+
+    async def run():
+        async def connected():
+            return False
+
+        stream = live.changes(connected, lifetime=0.3, interval=0.01)
+        assert await stream.__anext__() == "retry: 100\n\n"
+        live.bump()
+        v = live.version()
+        assert await stream.__anext__() == f"id: {v}\ndata: {v}\n\n"
+        assert [chunk async for chunk in stream] == []  # nothing else changes, so it just ends
+
+        # Reconnecting after missing a change gets it straight away; up to date gets nothing.
+        missed = live.changes(connected, last_seen=str(v - 1), lifetime=0.05, interval=0.01)
+        assert [chunk async for chunk in missed][1:] == [f"id: {v}\ndata: {v}\n\n"]
+        current = live.changes(connected, last_seen=str(v), lifetime=0.05, interval=0.01)
+        assert [chunk async for chunk in current][1:] == []
+
+    asyncio.run(run())

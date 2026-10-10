@@ -27,6 +27,7 @@
         </button>
         <div id="series-menu" class="series-menu" role="listbox" hidden></div>
       </div>
+      <a class="btn btn-ghost" href="/caster" target="_blank" rel="noopener" title="Stream overlay and caster controls">Caster</a>
       <button id="new-series-btn" class="btn btn-ghost">+ New series</button>
       <button id="settings-btn" class="btn btn-ghost btn-icon" title="Settings">⚙</button>
     </div>
@@ -50,8 +51,8 @@
       <label class="field-label" for="match-input">
         Match IDs — paste as many as you like, separated by spaces, commas or newlines
       </label>
-      <textarea id="match-input" rows="3"
-                placeholder="88117337778826&#10;88117337778827, 88117337778828"></textarea>
+      <textarea id="match-input" rows="3" autocomplete="off"
+                placeholder="Paste match IDs here"></textarea>
       <div class="row">
         <button id="add-matches-btn" class="btn btn-primary">Add matches</button>
         <label class="checkbox">

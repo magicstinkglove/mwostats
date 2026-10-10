@@ -131,8 +131,33 @@ Once you see `Application startup complete`, open `http://localhost:8000`.
    their full profile. Not every player is tracked there — when that's the case, the section
    just doesn't appear.
 
+7. **Combat Detail** shows survival rate, KMDD (kills where that pilot did the most damage,
+   which can be more than their kill count), components destroyed, friendly fire and per-lance splits, when MWO's match data
+   includes those fields.
+
 You can keep multiple **series** (named groups of matches) — switch between them from the
 top-right switcher, or start a new one with **+ New series**.
+
+### Streaming (OBS overlay)
+
+Click **Caster** (top right) to open the caster controls. It has a live preview of each scene,
+with switches sitting right on the preview next to the part they control.
+
+- **In-game overlay:** add its URL to OBS as a **Browser** source at 1920 × 1080. Switch the
+  scorebug, last match result and MVP, series leaders and team stat sidebars on and off from
+  the preview, and click a pilot to pop up their player card. To split elements across sources,
+  add `?show=score,last` (any of `score, last, leaders, spotlight, sidebars`) to a source's URL.
+- **Between-games scene:** a second scene to cut to between matches. It rotates through the
+  last match's box score, a head-to-head team comparison, each team's pilots and series awards;
+  pick a page on the preview to hold it. Its header names the next planned map.
+- **Map rotation scene:** a third scene showing the night's **map order**. Set it under the
+  preview (pick or type each map and mode, drag to reorder). As each match finishes, paste its
+  ID on its map: it's fetched, added to the series and shown there with its winner and score
+  (a blank row fills its map in from the match). Matches added in the stats app instead tick off
+  the planned map they were played on. The first open map is highlighted as up next.
+
+All three update the moment anything changes (a switch flipped, a match added), and elements ease in and out. The caster page can also set team names for the
+stream only (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats.
 
 ---
 
@@ -319,8 +344,8 @@ Restart and the card appears on Summary and each team tab automatically. `Series
 
 Section builders in `app/metrics/base.py`: `stats_section`, `table_section`, `bar_section`,
 `line_section`, `note_section` — tables sort on click, line charts skip unplayed matches for
-free. Shipped modules: `core_aggregates`, `leaderboards`, `match_results`, `player_detail`,
-`breakdowns`.
+free. Shipped modules: `core_aggregates`, `leaderboards`, `comp_stats`, `match_results`,
+`player_detail`, `breakdowns`.
 
 ### Layout
 
@@ -337,11 +362,14 @@ app/
   normalize.py     raw API body -> Match / PlayerStat
   teams.py         co-occurrence inference          <- the core logic
   service.py       ingest, context assembly, token resolution, Jarl's List caching
+  overlay.py       broadcast overlay snapshot and caster state
+  live.py          change notifications that push updates to the stream pages
+  intermission.py  full-screen between-games breakdown
   metrics/         auto-discovered metric modules
   routes/          matches, series, metrics, settings, players
-web/               index.html + app.js + modules.js + style.css (no build step)
+web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, maps.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             114 tests
+tests/             140 tests
 ```
 
 ### Caching
@@ -367,6 +395,11 @@ GET    /api/metrics/modules
 GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own page
 GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
+GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
+POST   /api/overlay/map-plan/match             {map_plan, index, match_id}: put a match on one map of the order (fetches it, adds it to the series)
+GET    /api/overlay/events                     server-sent events: a message whenever anything on stream may have changed
+GET    /api/overlay/intermission               full between-games breakdown for the live series
+PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, elements?, intermission_page?, map_plan?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any
@@ -381,7 +414,7 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-114 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
+140 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
 disjoint groups), clan-tag auto-naming, normalization of partial/malformed payloads, metric
 values on summary and team-scoped views, the HTTP layer with the network mocked, token
 resolution/masking, Jarl's List caching (incl. the per-request-commit regression test), and a
