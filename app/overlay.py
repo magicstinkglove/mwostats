@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 import sqlite3
 from collections import Counter
 from typing import Any
@@ -105,21 +106,50 @@ def set_map_plan(conn: sqlite3.Connection, plan: list[dict[str, str | None]]) ->
     set_app_setting(conn, _STATE_KEY, json.dumps(state))
 
 
+def _map_key(name: str | None) -> str:
+    return re.sub(r"[^a-z0-9]", "", (name or "").lower())
+
+
+def _same_map(planned: str, played: str | None) -> bool:
+    """The API names maps by code ("TerraThermaQP", "FrozenCityNight"), so a planned
+    "Terra Therma" matches any variant that starts with it."""
+    plan_key, played_key = _map_key(planned), _map_key(played)
+    return bool(plan_key and played_key) and (played_key.startswith(plan_key) or plan_key.startswith(played_key))
+
+
+def map_display_name(played: str | None) -> str | None:
+    """A readable name for an API map name: "TerraThermaQP" -> "Terra Therma"."""
+    for choice in MAP_CHOICES:
+        if _same_map(choice, played):
+            return choice
+    return played or None
+
+
 def _map_plan(ctx: SeriesContext, plan: list[dict]) -> list[dict[str, Any]]:
-    """The planned maps with progress: match N (chronological) completes slot N."""
-    out = []
-    for index, slot in enumerate(plan):
-        entry = {"number": index + 1, "map": slot["map"], "mode": slot.get("mode"),
-                 "status": "upcoming", "winner": None, "winner_name": None, "score": None, "played_map": None}
-        if index < len(ctx.matches):
-            match = ctx.matches[index]
-            winner = ctx.match_winner(match)
-            entry.update(status="done", winner=winner, winner_name=ctx.team_name(winner) if winner else None,
-                         score=_team_score(ctx, match), played_map=match.map_name or None)
-        elif index == len(ctx.matches):
-            entry["status"] = "next"
-        out.append(entry)
+    """The planned maps with progress. Each match, oldest first, ticks off the first
+    open slot for the map it was actually played on; a match on a map that isn't in
+    the plan ticks off nothing. The first open slot is up next."""
+    out = [{"number": index + 1, "map": slot["map"], "mode": slot.get("mode"), "status": "upcoming",
+            "winner": None, "winner_name": None, "score": None, "match_number": None}
+           for index, slot in enumerate(plan)]
+    for number, match in enumerate(ctx.matches, start=1):
+        entry = next((e for e in out if e["status"] == "upcoming" and _same_map(e["map"], match.map_name)), None)
+        if entry is None:
+            continue
+        winner = ctx.match_winner(match)
+        entry.update(status="done", winner=winner, winner_name=ctx.team_name(winner) if winner else None,
+                     score=_team_score(ctx, match), match_number=number)
+    upcoming = next((e for e in out if e["status"] == "upcoming"), None)
+    if upcoming:
+        upcoming["status"] = "next"
     return out
+
+
+def _off_plan(ctx: SeriesContext, plan: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Matches that didn't tick off a planned map: [{number, map}]."""
+    counted = {e["match_number"] for e in plan}
+    return [{"number": n, "map": map_display_name(m.map_name) or "Unknown map"}
+            for n, m in enumerate(ctx.matches, start=1) if n not in counted]
 
 
 def _live_series_id(conn: sqlite3.Connection, state: dict) -> int | None:
@@ -279,6 +309,7 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         return {"state": state, "series": None}
 
     record = ctx.team_record()
+    map_plan = _map_plan(ctx, state["map_plans"].get(str(ctx.series.id), []))
     return {
         "state": state,
         "series": {"id": ctx.series.id, "name": ctx.series.name},
@@ -296,8 +327,9 @@ def snapshot(conn: sqlite3.Connection) -> dict[str, Any]:
         "leaders": _leaders(ctx),
         "spotlight": _spotlight(ctx, state["spotlight"]),
         "sidebars": _sidebars(ctx),
-        "map_plan": _map_plan(ctx, state["map_plans"].get(str(ctx.series.id), [])),
-        "map_choices": sorted(set(MAP_CHOICES) | {m.map_name for m in ctx.matches if m.map_name}),
+        "map_plan": map_plan,
+        "off_plan": _off_plan(ctx, map_plan) if map_plan else [],
+        "map_choices": sorted(set(MAP_CHOICES) | {map_display_name(m.map_name) for m in ctx.matches if m.map_name}),
         "mode_choices": list(MODE_CHOICES),
         "rosters": {
             team: [a.username for a in ctx.inference.roster(team)] for team in (TEAM_A, TEAM_B)

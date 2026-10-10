@@ -71,7 +71,7 @@
     }
     .map-row .status { font-size: 12px; color: var(--muted); }
     .map-row .status.done { color: var(--ok); }
-    .map-row .status.off { color: var(--warn); }
+    .off-plan { font-size: 12px; color: var(--warn); margin: 8px 0 0; }
     .map-row .status.next { color: var(--text); font-weight: 600; }
     .map-row .remove { background: none; border: 0; color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 6px; }
     .map-row .remove:hover { color: var(--danger); background: rgba(248,81,73,.12); }
@@ -181,7 +181,8 @@
       </div>
       <ol class="map-list" id="map-list"></ol>
       <datalist id="map-choices"></datalist>
-      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map; a yellow status means it was played on a different map than planned.</p>
+      <p class="off-plan" id="off-plan" hidden></p>
+      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the planned map it was played on; a match on a map that isn't planned is listed in yellow and ticks off nothing.</p>
     </div>
   </section>
 </main>
@@ -262,12 +263,7 @@
     const slot = (snap && snap.map_plan || [])[index];
     if (!slot) return { cls: '', text: '' };
     if (slot.status === 'done') {
-      const norm = (v) => (v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const off = slot.played_map && norm(slot.played_map) !== norm(slot.map);
-      return {
-        cls: off ? 'off' : 'done',
-        text: `${slot.winner_name ? `✓ ${slot.winner_name}` : '✓ Played'}${off ? ` · played ${slot.played_map}` : ''}`,
-      };
+      return { cls: 'done', text: `${slot.winner_name ? `✓ ${slot.winner_name}` : '✓ Played'} · match ${slot.match_number}` };
     }
     if (slot.status === 'next') return { cls: 'next', text: 'Up next' };
     return { cls: '', text: '' };
@@ -275,6 +271,10 @@
 
   function renderPlan() {
     const list = $('map-list');
+    const off = (snap && snap.off_plan) || [];
+    $('off-plan').hidden = !off.length;
+    $('off-plan').textContent = off.length
+      ? `Not in the plan: ${off.map((m) => `match ${m.number} (${m.map})`).join(', ')}` : '';
     $('add-map').disabled = !(snap && snap.series);
     $('map-choices').replaceChildren(...((snap && snap.map_choices) || []).map((m) => new Option(m)));
     if (!plan.length) {

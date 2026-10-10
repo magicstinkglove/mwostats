@@ -199,12 +199,35 @@ def test_map_plan_ticks_off_maps_as_matches_arrive(client):  # noqa: F811
     body = client.get("/api/overlay").json()
     assert [m["status"] for m in body["map_plan"]] == ["done", "done", "next"]
     assert body["map_plan"][0]["winner_name"]
-    assert body["map_plan"][0]["played_map"] == "Frozen City"
+    assert body["map_plan"][1]["match_number"] == 2
+    assert body["off_plan"] == []
     assert client.get("/api/overlay/intermission").json()["map_plan"][2]["status"] == "next"
 
     # Plans are per series.
     create_series(client, "Next Night")
     assert client.get("/api/overlay").json()["map_plan"] == []
+
+
+def test_map_plan_pairs_results_by_map_not_by_position(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    client.put("/api/overlay", json={"map_plan": [{"map": "Canyon Network"}, {"map": "Emerald Taiga"}]})
+    # m1 is on Frozen City (not planned), m2 on Canyon Network (planned first).
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m1 m2"})
+    body = client.get("/api/overlay").json()
+    assert [m["status"] for m in body["map_plan"]] == ["done", "next"]
+    assert body["map_plan"][0]["match_number"] == 2
+    assert body["map_plan"][1]["winner"] is None  # no result pinned on a map nobody played
+    assert body["off_plan"] == [{"number": 1, "map": "Frozen City"}]
+
+
+def test_api_map_codes_match_planned_names():
+    from app.overlay import _same_map, map_display_name
+
+    assert _same_map("Terra Therma", "TerraThermaQP")
+    assert _same_map("Frozen City", "FrozenCityNight")
+    assert not _same_map("Polar Highlands", "TerraThermaQP")
+    assert map_display_name("PolarHighlands") == "Polar Highlands"
+    assert map_display_name("SomeNewMap") == "SomeNewMap"
 
 
 def test_map_plan_is_capped(client):  # noqa: F811

@@ -152,7 +152,8 @@ with switches sitting right on the preview next to the part they control.
   pick a page on the preview to hold it. Its header names the next planned map.
 - **Map rotation scene:** a third scene showing the night's **map order**. Set it under the
   preview (pick or type each map and mode, drag to reorder); each match you add ticks off the
-  next map with its winner and score, and the next one is highlighted.
+  planned map it was actually played on, with its winner and score, and the first open map is
+  highlighted as up next. A match on a map that isn't in the plan ticks off nothing.
 
 All three update the moment anything changes (a switch flipped, a match added), and elements ease in and out. The caster page can also set team names for the
 stream only (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats.
@@ -367,7 +368,7 @@ app/
   routes/          matches, series, metrics, settings, players
 web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, maps.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             136 tests
+tests/             138 tests
 ```
 
 ### Caching
@@ -411,7 +412,7 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-136 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
+138 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
 disjoint groups), clan-tag auto-naming, normalization of partial/malformed payloads, metric
 values on summary and team-scoped views, the HTTP layer with the network mocked, token
 resolution/masking, Jarl's List caching (incl. the per-request-commit regression test), and a
