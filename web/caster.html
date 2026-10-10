@@ -17,16 +17,30 @@
     .spot-team[data-team="B"] .spot-btn.active { outline-color: var(--team-b); }
     .url-box { display: flex; gap: 8px; margin-top: 10px; }
     .url-box input { flex: 1; font-family: var(--mono); font-size: 12px; padding: 7px 9px; }
-    .switches { display: flex; flex-wrap: wrap; gap: 8px; }
-    .switch { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; cursor: pointer;
-      background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; font-size: 13px; user-select: none; }
-    .switch input { appearance: none; -webkit-appearance: none; margin: 0; width: 34px; height: 20px; border-radius: 999px;
-      background: var(--border); position: relative; cursor: pointer; transition: background .15s; flex: none; }
-    .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%;
-      background: var(--muted); transition: transform .15s, background .15s; }
-    .switch input:checked { background: var(--ok); }
-    .switch input:checked::after { transform: translateX(14px); background: #fff; }
-    .switch:has(input:checked) { border-color: var(--ok); }
+    /* Switches that sit on the scene previews, next to the part they control. */
+    .ps {
+      position: absolute; z-index: 2; display: inline-flex; align-items: center; gap: 7px;
+      font: inherit; font-size: 11px; font-weight: 600; color: #fff; cursor: pointer; white-space: nowrap;
+      padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25);
+      background: rgba(13,17,23,.88); box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    .ps::before {
+      content: ""; width: 24px; height: 14px; border-radius: 999px; flex: none;
+      background: #4a5361 radial-gradient(circle at 7px 7px, #c9d1d9 5px, transparent 5.5px);
+      transition: background .15s;
+    }
+    .ps.on { border-color: var(--ok); }
+    .ps.on::before { background: var(--ok) radial-gradient(circle at 17px 7px, #fff 5px, transparent 5.5px); }
+    .ps:not(.on) { color: #b9c1cb; }
+    .ps-pages {
+      position: absolute; z-index: 2; left: 3%; bottom: 1.5%; display: flex; gap: 4px;
+      padding: 3px; border-radius: 8px; background: rgba(13,17,23,.92); border: 1px solid rgba(255,255,255,.2);
+    }
+    .ps-page { font: inherit; font-size: 11px; color: #c9d1d9; background: none; border: 0; border-radius: 5px; padding: 4px 9px; cursor: pointer; }
+    .ps-page:hover { background: rgba(255,255,255,.08); }
+    .ps-page.active { background: var(--team-a); color: #1a1205; font-weight: 700; }
+    .panel-subhead { display: flex; align-items: center; justify-content: space-between; margin: 18px 0 10px; }
+    .panel-subhead h3 { margin: 0; font-size: 14px; }
     .preview {
       position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px;
       border: 1px solid var(--border);
@@ -39,8 +53,6 @@
       background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
     }
     .url-box input { font-family: var(--mono); font-size: 12px; }
-    .page-btns { display: flex; flex-wrap: wrap; gap: 6px; }
-    .page-btns .btn.active { background: var(--team-a); border-color: var(--team-a); color: #1a1205; font-weight: 600; }
     .map-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 6px; }
     .map-row {
       display: grid; grid-template-columns: 28px 30px 1fr 160px 230px 36px; align-items: center; gap: 10px;
@@ -101,73 +113,61 @@
   </section>
 
   <section class="panel">
-    <div class="panel-head"><h2>On stream</h2></div>
+    <div class="panel-head"><h2>In-game overlay</h2></div>
     <div class="panel-body">
-      <div class="switches" id="switches">
-        <label class="switch"><input type="checkbox" data-el="score"><span>Scorebug</span></label>
-        <label class="switch"><input type="checkbox" data-el="last"><span>Last match result</span></label>
-        <label class="switch"><input type="checkbox" data-el="maps"><span>Map order</span></label>
-        <label class="switch"><input type="checkbox" data-el="leaders"><span>Series leaders</span></label>
-        <label class="switch"><input type="checkbox" data-el="sidebars"><span>Team sidebars</span></label>
+      <div class="preview" id="preview">
+        <iframe id="preview-frame" title="Overlay preview"></iframe>
+        <button class="ps" data-el="score" style="left:76%;top:2.5%">Scorebug</button>
+        <button class="ps" data-el="last" style="left:75%;top:9%">Last match</button>
+        <button class="ps" data-el="sidebars" style="left:1%;top:9%">Team sidebars</button>
+        <button class="ps" data-el="leaders" style="right:1.5%;top:60%">Series leaders</button>
+        <button class="ps" id="ps-spot" style="left:3%;top:76%">Player card</button>
       </div>
-      <p class="hint">What's showing on the overlay right now. Changes appear on stream within 2 seconds. The series leaders box steps aside while the team sidebars are up, and the player card is controlled under Player spotlight.</p>
-    </div>
-  </section>
+      <p class="hint">Flip the switches on the preview to show or hide each part on stream (within 2 seconds). The series leaders box steps aside while the team sidebars are up.</p>
 
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Map order</h2>
-      <button id="add-map" class="btn">+ Add map</button>
-    </div>
-    <div class="panel-body">
-      <ol class="map-list" id="map-list"></ol>
-      <datalist id="map-choices"></datalist>
-      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map on the overlay; a yellow status means the match was played on a different map than planned.</p>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Player spotlight</h2>
-      <button id="clear-spot" class="btn btn-ghost">Hide card (Esc)</button>
-    </div>
-    <div class="panel-body">
-      <div class="cast-grid">
+      <div class="cast-grid" style="margin-top:14px">
         <div class="spot-team" data-team="A"><h3 id="spot-name-a">Team A</h3><div class="spot-list" id="spot-list-a"></div></div>
         <div class="spot-team" data-team="B"><h3 id="spot-name-b">Team B</h3><div class="spot-list" id="spot-list-b"></div></div>
       </div>
-      <p class="hint">Click a pilot to slide their lower-third card on stream. Click again to hide it.</p>
-    </div>
-  </section>
+      <p class="hint">Click a pilot to slide their player card on stream; click again, or press Esc, to hide it.</p>
 
-  <section class="panel">
-    <div class="panel-head"><h2>OBS setup</h2></div>
-    <div class="panel-body">
       <div class="url-box">
         <input id="overlay-url" readonly>
         <button id="copy-url" class="btn btn-primary">Copy</button>
       </div>
-      <p class="hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080. One source is all you need: everything on it is switched from On stream above.</p>
-      <div class="preview" id="preview" style="margin-top:14px"><iframe id="preview-frame" title="Overlay preview"></iframe></div>
+      <p class="hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080.</p>
     </div>
   </section>
 
   <section class="panel">
     <div class="panel-head"><h2>Between-games scene</h2></div>
     <div class="panel-body">
-      <div class="page-btns" id="page-btns">
-        <button class="btn" data-page="">Rotate all</button>
-        <button class="btn" data-page="recap">Last match</button>
-        <button class="btn" data-page="teams">Head to head</button>
-        <button class="btn" data-page="players">Pilots</button>
-        <button class="btn" data-page="awards">Awards</button>
+      <div class="preview" id="inter-preview">
+        <iframe id="inter-frame" title="Between-games preview"></iframe>
+        <button class="ps" data-el="maps" style="right:3.6%;top:10.2%">Map order</button>
+        <div class="ps-pages" id="page-btns">
+          <button class="ps-page" data-page="">Rotate</button>
+          <button class="ps-page" data-page="recap">Last match</button>
+          <button class="ps-page" data-page="teams">Head to head</button>
+          <button class="ps-page" data-page="players">Pilots</button>
+          <button class="ps-page" data-page="awards">Awards</button>
+        </div>
       </div>
+      <p class="hint">Pick a page at the bottom of the preview to hold it, or Rotate to cycle every 15 seconds (add <code>?rotate=20</code> to the URL to change that).</p>
+
+      <div class="panel-subhead">
+        <h3>Map order</h3>
+        <button id="add-map" class="btn">+ Add map</button>
+      </div>
+      <ol class="map-list" id="map-list"></ol>
+      <datalist id="map-choices"></datalist>
+      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map; a yellow status means it was played on a different map than planned.</p>
+
       <div class="url-box">
         <input id="inter-url" readonly>
         <button id="copy-inter" class="btn btn-primary">Copy</button>
       </div>
-      <p class="hint">A full-screen stats breakdown for a separate OBS scene to cut to between games. It rotates through the pages every 15 seconds (add <code>?rotate=20</code> to change that), or pick a page above to hold it.</p>
-      <div class="preview" id="inter-preview" style="margin-top:14px"><iframe id="inter-frame" title="Between-games preview"></iframe></div>
+      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it between games.</p>
     </div>
   </section>
 </main>
@@ -335,17 +335,23 @@
     select.replaceChildren(...options);
   }
 
+  function isOn(el) {
+    return el === 'sidebars' ? Boolean(snap.state.sidebars) : snap.state.elements[el] !== false;
+  }
+
   function render() {
     if (!snap) return;
     if (!planEditing()) syncPlanFromServer();
     $('series-select').value = snap.state.series_id === null ? '' : String(snap.state.series_id);
-    for (const btn of document.querySelectorAll('#page-btns .btn')) {
+    for (const btn of document.querySelectorAll('#page-btns .ps-page')) {
       btn.classList.toggle('active', (btn.dataset.page || null) === (snap.state.intermission_page || null));
     }
-    for (const box of document.querySelectorAll('#switches input')) {
-      const el = box.dataset.el;
-      box.checked = el === 'sidebars' ? Boolean(snap.state.sidebars) : snap.state.elements[el] !== false;
+    for (const chip of document.querySelectorAll('.ps[data-el]')) {
+      chip.classList.toggle('on', isOn(chip.dataset.el));
     }
+    const spot = $('ps-spot');
+    spot.classList.toggle('on', Boolean(snap.state.spotlight));
+    spot.textContent = snap.state.spotlight ? `Player card: ${snap.state.spotlight}` : 'Player card: pick a pilot below';
     $('live-pill').textContent = snap.series
       ? `${snap.series.name} · ${snap.teams.A.wins}–${snap.teams.B.wins}` : 'No series yet';
 
@@ -387,11 +393,17 @@
     input.onchange = () => update({ team_names: { [input.dataset.team]: input.value } });
     input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); };
   }
-  for (const box of document.querySelectorAll('#switches input')) {
-    box.onchange = () => update(box.dataset.el === 'sidebars'
-      ? { sidebars: box.checked } : { elements: { [box.dataset.el]: box.checked } });
+  for (const chip of document.querySelectorAll('.ps[data-el]')) {
+    chip.onclick = () => {
+      if (!snap) return;
+      const el = chip.dataset.el, next = !isOn(el);
+      update(el === 'sidebars' ? { sidebars: next } : { elements: { [el]: next } });
+    };
   }
-  $('clear-spot').onclick = () => update({ spotlight: null });
+  $('ps-spot').onclick = () => {
+    if (snap && snap.state.spotlight) update({ spotlight: null });
+    else $('spot-list-a').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
   function copyButton(buttonId, inputId) {
     $(buttonId).onclick = async () => {
@@ -402,7 +414,7 @@
   }
   copyButton('copy-url', 'overlay-url');
   copyButton('copy-inter', 'inter-url');
-  for (const btn of document.querySelectorAll('#page-btns .btn')) {
+  for (const btn of document.querySelectorAll('#page-btns .ps-page')) {
     btn.onclick = () => update({ intermission_page: btn.dataset.page || null });
   }
   window.addEventListener('resize', fitPreview);

@@ -50,10 +50,33 @@
     .h-mid { text-align: center; line-height: 1.15; }
     .h-mid .t1 { font-size: 16px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); }
     .h-mid .t2 { font-size: 34px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .h-mid .t3 { font-size: 16px; color: var(--dim); margin-top: 2px; }
+    .h-mid .t3 { font-size: 18px; color: var(--dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* ---------------------------------------------------- pages */
-    main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; }
+    main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; transition: top .4s; }
+    body.has-maps main { top: 262px; }
+
+    /* ---------------------------------------------------- map order strip */
+    #mapstrip {
+      position: absolute; top: 172px; left: 70px; right: 70px; height: 64px;
+      display: flex; align-items: stretch; gap: 10px;
+    }
+    #mapstrip[hidden] { display: none; }
+    .ms-label { display: flex; align-items: center; font-size: 15px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); padding-right: 6px; }
+    .ms {
+      flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px;
+      padding: 0 16px; background: var(--card); border: 1px solid var(--faint); border-bottom: 4px solid var(--faint);
+    }
+    .ms .top { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; overflow: hidden; }
+    .ms .n { font-size: 15px; color: var(--dim); }
+    .ms .m { font-size: 22px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+    .ms .sub { font-size: 15px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ms.done { border-bottom-color: var(--c); }
+    .ms.done .m { color: var(--dim); }
+    .ms.done .sub b { color: var(--c); }
+    .ms.next { background: var(--ink); color: #0d1218; border-color: var(--ink); }
+    .ms.next .n, .ms.next .sub { color: #3a434e; }
+    .ms.upcoming { opacity: .75; }
     .page { position: absolute; inset: 0; opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; pointer-events: none; }
     .page.on { opacity: 1; transform: none; }
     .page-title { font-size: 20px; letter-spacing: 5px; text-transform: uppercase; color: var(--dim); margin: 0 0 18px; }
@@ -139,6 +162,8 @@
   <div class="h-wins b num" id="h-wins-b">0</div>
   <div class="h-name b" id="h-name-b"></div>
 </header>
+
+<div id="mapstrip" hidden></div>
 
 <main>
   <section class="page" id="page-recap"></section>
@@ -257,13 +282,6 @@
         h('div', { class: 'bar-track b' }, h('div', { class: 'bar-fill', style: `width:${(b / max) * 100}%` })),
         h('span', { class: 'bar-v b num', text: row.B_text, style: better === 'B' ? '' : 'opacity:.75' }));
     });
-    const upcoming = (d.map_plan || []).filter((m) => m.status !== 'done').map((m) => h('tr', { style: m.status === 'next' ? '' : 'opacity:.5' },
-      h('td', { class: 'num', text: m.number }),
-      h('td', { class: 'name', text: m.map }),
-      h('td', { class: 'mech', text: m.mode || '' }),
-      h('td', {}, m.status === 'next' ? h('span', { class: 'chip next', text: 'Up next' }) : ''),
-      h('td', { class: 'r', text: '' }),
-      h('td', { class: 'mech', text: '' })));
     const hist = d.history.slice(-9).map((m) => h('tr', {},
       h('td', { class: 'num', text: m.number }),
       h('td', { class: 'name', text: m.map || '—' }),
@@ -277,7 +295,7 @@
         h('div', { class: 'card' }, bars),
         h('div', { class: 'card hist' },
           h('div', { class: 'tbl-head', style: '--c:var(--dim)' }, 'Match results'),
-          table(['#', 'Map', 'Mode', 'Winner', 'Score', 'MVP'], hist.concat(upcoming).slice(0, 12)))),
+          table(['#', 'Map', 'Mode', 'Winner', 'Score', 'MVP'], hist))),
     ];
   }
 
@@ -329,9 +347,33 @@
     $('h-wins-a').textContent = d.teams.A.wins;
     $('h-wins-b').textContent = d.teams.B.wins;
     $('h-next').textContent = d.matches_played ? `Up next: Match ${d.matches_played + 1}` : 'Starting soon';
+    // The next planned map, when there is one, says more than the series name.
     const next = (d.map_plan || []).find((m) => m.status === 'next');
-    if (next) $('h-next').textContent += ` · ${next.map}`;
-    $('h-series').textContent = d.series.name;
+    $('h-series').textContent = next ? [next.map, next.mode].filter(Boolean).join(' · ') : d.series.name;
+  }
+
+  let mapKey = null;
+  function renderMapStrip(d) {
+    const strip = $('mapstrip');
+    const plan = d.series ? (d.map_plan || []) : [];
+    const on = plan.length > 0 && !(d.state.elements && d.state.elements.maps === false);
+    strip.hidden = !on;
+    document.body.classList.toggle('has-maps', on);
+    const key = JSON.stringify([on, plan, d.teams]);
+    if (!on || key === mapKey) return;
+    mapKey = key;
+    strip.replaceChildren(h('span', { class: 'ms-label', text: 'Maps' }), ...plan.map((m) => {
+      let sub;
+      if (m.status === 'done') {
+        const score = m.score && m.winner && m.score[m.winner] !== undefined
+          ? ` ${m.score[m.winner]}–${m.score[m.winner === 'A' ? 'B' : 'A']}` : '';
+        sub = m.winner ? h('div', { class: 'sub' }, h('b', { text: `${d.teams[m.winner].name}${score}` })) : h('div', { class: 'sub', text: 'Played' });
+      } else {
+        sub = h('div', { class: 'sub', text: [m.status === 'next' ? 'UP NEXT' : null, m.mode].filter(Boolean).join(' · ') });
+      }
+      return h('div', { class: `ms ${m.status}`, style: `--c:${color(m.winner)}` },
+        h('div', { class: 'top' }, h('span', { class: 'n', text: m.number }), h('span', { class: 'm', text: m.map })), sub);
+    }));
   }
 
   function renderPages(d) {
@@ -339,7 +381,7 @@
     for (const page of d.pages) {
       const section = $(`page-${page}`);
       const content = d.series ? BUILDERS[page](d) : null;
-      const key = JSON.stringify(content ? [d.teams, page === 'recap' ? d.last_match : page === 'teams' ? [d.comparison, d.history, d.map_plan] : d[page]] : null);
+      const key = JSON.stringify(content ? [d.teams, page === 'recap' ? d.last_match : page === 'teams' ? [d.comparison, d.history] : d[page]] : null);
       if (rendered[page] !== key) {
         rendered[page] = key;
         section.replaceChildren(...(content || []));
@@ -366,6 +408,7 @@
       if (!response.ok) return;
       data = await response.json();
       renderHeader(data);
+      renderMapStrip(data);
       available = renderPages(data);
       if (!available.length) {
         $('page-recap').replaceChildren(h('div', { class: 'empty', text: data.series ? 'Waiting for the first match…' : 'No series yet' }));

@@ -140,22 +140,21 @@ top-right switcher, or start a new one with **+ New series**.
 
 ### Streaming (OBS overlay)
 
-Click **Caster** (top right) to open the caster controls. Copy the overlay URL into OBS as a
-**Browser** source at 1920 × 1080. The **On stream** switches on the caster page turn each
-part on or off: the scorebug, the last match's result and MVP, the map order, series leaders
-and team stat sidebars. Click a pilot to pop up their player card. It all updates by itself as
-you add matches. The caster page can also set team names for the overlay only (say,
-"Emperors" instead of "[EmP] Emperors") without changing them in the stats. To put elements
-on different sources, add `?show=score,last` (any of `score, last, maps, leaders, spotlight,
-sidebars`) to a source's URL.
+Click **Caster** (top right) to open the caster controls. It has a live preview of each scene,
+with switches sitting right on the preview next to the part they control.
 
-Set the night's **map order** on the caster page: pick or type each map (and mode), drag to
-reorder. The overlay shows the order and ticks off the next map each time you add a match.
+- **In-game overlay:** add its URL to OBS as a **Browser** source at 1920 × 1080. Switch the
+  scorebug, last match result and MVP, series leaders and team stat sidebars on and off from
+  the preview, and click a pilot to pop up their player card. To split elements across sources,
+  add `?show=score,last` (any of `score, last, leaders, spotlight, sidebars`) to a source's URL.
+- **Between-games scene:** a second scene to cut to between matches. It rotates through the
+  last match's box score, a head-to-head team comparison, each team's pilots and series awards;
+  pick a page on the preview to hold it. Set the night's **map order** under it (pick or type
+  each map and mode, drag to reorder); the scene shows the order and ticks off a map each time
+  you add a match.
 
-For the break between games, add a second scene with the **between-games** URL from the
-caster page. It's a full-screen breakdown that rotates through the last match's box score,
-a head-to-head team comparison with every result so far, each team's pilots, and series
-awards. You can also hold it on one page from the caster page.
+Both update by themselves as you add matches. The caster page can also set team names for the
+stream only (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats.
 
 ---
 
