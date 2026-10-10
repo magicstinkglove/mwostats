@@ -98,12 +98,14 @@ def test_overlay_spotlight_and_pinned_series(client):  # noqa: F811
     body = client.put("/api/overlay", json={"spotlight": None}).json()
     assert body["spotlight"] is None
     assert body["state"]["series_id"] == first["id"]
+    assert body["state"]["last_spotlight"] == "Alice"  # the switch brings her back
 
     # Switching series clears a spotlight from the old one.
     client.put("/api/overlay", json={"spotlight": "Alice"})
     body = client.put("/api/overlay", json={"series_id": None}).json()
     assert body["series"]["name"] == "Second"
     assert body["state"]["spotlight"] is None
+    assert body["state"]["last_spotlight"] is None
 
 
 def test_overlay_rejects_unknown_series(client):  # noqa: F811

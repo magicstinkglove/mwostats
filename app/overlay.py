@@ -39,6 +39,8 @@ def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
     return {
         "series_id": state.get("series_id"),
         "spotlight": state.get("spotlight"),
+        # The pilot most recently on the player card, so switching it back on brings them back.
+        "last_spotlight": state.get("last_spotlight"),
         "team_names": state.get("team_names") or {},
         "elements": {name: bool((state.get("elements") or {}).get(name, True)) for name in ELEMENTS},
         "sidebars": bool(state.get("sidebars")),
@@ -50,8 +52,11 @@ def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
 def set_state(conn: sqlite3.Connection, **changes: Any) -> dict[str, Any]:
     state = get_state(conn)
     if "series_id" in changes and changes["series_id"] != state["series_id"]:
-        state["spotlight"] = None  # a pilot from last night's series isn't on screen tonight
+        # A pilot from last night's series isn't on screen tonight.
+        state["spotlight"] = state["last_spotlight"] = None
     state.update(changes)
+    if state["spotlight"]:
+        state["last_spotlight"] = state["spotlight"]
     set_app_setting(conn, _STATE_KEY, json.dumps(state))
     return state
 

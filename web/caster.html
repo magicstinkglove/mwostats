@@ -375,7 +375,8 @@
     }
     const spot = $('ps-spot');
     spot.classList.toggle('on', Boolean(snap.state.spotlight));
-    spot.textContent = snap.state.spotlight ? `Player card: ${snap.state.spotlight}` : 'Player card: pick a pilot below';
+    const pick = snap.state.spotlight || spotPick();
+    spot.textContent = pick ? `Player card: ${pick}` : 'Player card: no pilots yet';
     $('live-pill').textContent = snap.series
       ? `${snap.series.name} · ${snap.teams.A.wins}–${snap.teams.B.wins}` : 'No series yet';
 
@@ -427,8 +428,18 @@
       update(el === 'sidebars' ? { sidebars: next } : { elements: { [el]: next } });
     };
   }
+  // Who the player card switch brings up: the last pilot shown, if they're still on a
+  // roster, otherwise the first pilot listed.
+  function spotPick() {
+    if (!snap || !snap.rosters) return null;
+    const all = [...snap.rosters.A, ...snap.rosters.B];
+    return all.includes(snap.state.last_spotlight) ? snap.state.last_spotlight : all[0] || null;
+  }
+
   $('ps-spot').onclick = () => {
-    if (snap && snap.state.spotlight) update({ spotlight: null });
+    if (!snap) return;
+    if (snap.state.spotlight) update({ spotlight: null });
+    else if (spotPick()) update({ spotlight: spotPick() });
     else $('spot-list-a').scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
