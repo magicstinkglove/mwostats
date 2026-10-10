@@ -60,27 +60,31 @@ def health(conn=Depends(get_conn)) -> dict:
     }
 
 
+# OBS and browsers otherwise keep serving a stale page after an update.
+_NO_CACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+    return FileResponse(WEB_DIR / "index.html", headers=_NO_CACHE)
 
 
 @app.get("/overlay")
 def overlay_page() -> FileResponse:
     """Transparent page for an OBS browser source."""
-    return FileResponse(WEB_DIR / "overlay.html")
+    return FileResponse(WEB_DIR / "overlay.html", headers=_NO_CACHE)
 
 
 @app.get("/intermission")
 def intermission_page() -> FileResponse:
     """Full-screen between-games scene for OBS."""
-    return FileResponse(WEB_DIR / "intermission.html")
+    return FileResponse(WEB_DIR / "intermission.html", headers=_NO_CACHE)
 
 
 @app.get("/caster")
 def caster_page() -> FileResponse:
     """Caster controls for the overlay: live series and player spotlight."""
-    return FileResponse(WEB_DIR / "caster.html")
+    return FileResponse(WEB_DIR / "caster.html", headers=_NO_CACHE)
 
 
 if WEB_DIR.exists():
