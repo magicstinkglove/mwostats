@@ -19,6 +19,10 @@ from .service import build_context
 
 _STATE_KEY = "overlay_state"
 
+# Overlay elements the caster switches on and off (the sidebars and spotlight
+# have their own state below). Everything here starts on.
+ELEMENTS = ("score", "last", "maps", "leaders")
+
 
 def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
     """{series_id, spotlight, team_names}; series_id None means "the newest series".
@@ -36,6 +40,7 @@ def get_state(conn: sqlite3.Connection) -> dict[str, Any]:
         "series_id": state.get("series_id"),
         "spotlight": state.get("spotlight"),
         "team_names": state.get("team_names") or {},
+        "elements": {name: bool((state.get("elements") or {}).get(name, True)) for name in ELEMENTS},
         "sidebars": bool(state.get("sidebars")),
         "intermission_page": state.get("intermission_page"),
         "map_plans": state.get("map_plans") or {},

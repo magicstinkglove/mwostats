@@ -188,7 +188,11 @@
 
   const params = new URLSearchParams(location.search);
   const ALL = ['score', 'last', 'maps', 'leaders', 'spotlight', 'sidebars'];
-  const shown = new Set((params.get('show') || ALL.join(',')).split(',').map((s) => s.trim()));
+  // ?show= limits what this particular OBS source may draw (for splitting elements
+  // across sources); what's actually on stream is switched from the caster page.
+  const allowed = new Set((params.get('show') || ALL.join(',')).split(',').map((s) => s.trim()));
+  const shown = { has: (name) => allowed.has(name) && !(current && current.state.elements && current.state.elements[name] === false) };
+  let current = null;
   const TEAM_COLOR = { A: 'var(--team-a)', B: 'var(--team-b)' };
   const $ = (id) => document.getElementById(id);
   const color = (team) => TEAM_COLOR[team] || 'var(--dim)';
@@ -357,6 +361,7 @@
       const response = await fetch('/api/overlay', { cache: 'no-store' });
       if (!response.ok) return;
       const data = await response.json();
+      current = data;
       // Each element renders on its own, so one failing never blanks the rest.
       for (const render of [renderScore, renderLast, renderMaps, renderLeaders, renderSidebars, renderSpotlight]) {
         try { render(data); } catch (err) {

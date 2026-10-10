@@ -209,3 +209,16 @@ def test_map_plan_is_capped(client):  # noqa: F811
     create_series(client)
     too_many = [{"map": f"Map {i}"} for i in range(21)]
     assert client.put("/api/overlay", json={"map_plan": too_many}).status_code == 422
+
+
+def test_overlay_elements_switch_on_and_off(client):  # noqa: F811
+    create_series(client)
+    state = client.get("/api/overlay").json()["state"]
+    assert state["elements"] == {"score": True, "last": True, "maps": True, "leaders": True}
+
+    state = client.put("/api/overlay", json={"elements": {"leaders": False}}).json()["state"]
+    assert state["elements"]["leaders"] is False and state["elements"]["score"] is True
+    # Unrelated changes keep the switches as they are.
+    state = client.put("/api/overlay", json={"sidebars": True}).json()["state"]
+    assert state["elements"]["leaders"] is False and state["sidebars"] is True
+    assert client.put("/api/overlay", json={"elements": {"bogus": True}}).status_code == 400

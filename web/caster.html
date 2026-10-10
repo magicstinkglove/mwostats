@@ -17,7 +17,16 @@
     .spot-team[data-team="B"] .spot-btn.active { outline-color: var(--team-b); }
     .url-box { display: flex; gap: 8px; margin-top: 10px; }
     .url-box input { flex: 1; font-family: var(--mono); font-size: 12px; padding: 7px 9px; }
-    .show-opts { display: flex; flex-wrap: wrap; gap: 14px; }
+    .switches { display: flex; flex-wrap: wrap; gap: 8px; }
+    .switch { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 10px; cursor: pointer;
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; font-size: 13px; user-select: none; }
+    .switch input { appearance: none; -webkit-appearance: none; margin: 0; width: 34px; height: 20px; border-radius: 999px;
+      background: var(--border); position: relative; cursor: pointer; transition: background .15s; flex: none; }
+    .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--muted); transition: transform .15s, background .15s; }
+    .switch input:checked { background: var(--ok); }
+    .switch input:checked::after { transform: translateX(14px); background: #fff; }
+    .switch:has(input:checked) { border-color: var(--ok); }
     .preview {
       position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px;
       border: 1px solid var(--border);
@@ -92,6 +101,20 @@
   </section>
 
   <section class="panel">
+    <div class="panel-head"><h2>On stream</h2></div>
+    <div class="panel-body">
+      <div class="switches" id="switches">
+        <label class="switch"><input type="checkbox" data-el="score"><span>Scorebug</span></label>
+        <label class="switch"><input type="checkbox" data-el="last"><span>Last match result</span></label>
+        <label class="switch"><input type="checkbox" data-el="maps"><span>Map order</span></label>
+        <label class="switch"><input type="checkbox" data-el="leaders"><span>Series leaders</span></label>
+        <label class="switch"><input type="checkbox" data-el="sidebars"><span>Team sidebars</span></label>
+      </div>
+      <p class="hint">What's showing on the overlay right now. Changes appear on stream within 2 seconds. The series leaders box steps aside while the team sidebars are up, and the player card is controlled under Player spotlight.</p>
+    </div>
+  </section>
+
+  <section class="panel">
     <div class="panel-head">
       <h2>Map order</h2>
       <button id="add-map" class="btn">+ Add map</button>
@@ -100,16 +123,6 @@
       <ol class="map-list" id="map-list"></ol>
       <datalist id="map-choices"></datalist>
       <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map on the overlay; a yellow status means the match was played on a different map than planned.</p>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head">
-      <h2>Team sidebars</h2>
-      <button id="sidebars-btn" class="btn">Show player stats on sides</button>
-    </div>
-    <div class="panel-body">
-      <p class="hint" style="margin:0">Slides each team's pilots in down the left and right edges with avg damage, kills and survival. The series leaders box hides while they're up.</p>
     </div>
   </section>
 
@@ -130,20 +143,11 @@
   <section class="panel">
     <div class="panel-head"><h2>OBS setup</h2></div>
     <div class="panel-body">
-      <p class="hint" style="margin:0 0 10px">Which elements this OBS source is allowed to show. Ticking a box doesn't turn anything on: the sidebars, player card and map order still appear only when you switch them on above.</p>
-      <div class="show-opts" id="show-opts">
-        <label class="checkbox"><input type="checkbox" value="score" checked> Scorebug</label>
-        <label class="checkbox"><input type="checkbox" value="last" checked> Last match result</label>
-        <label class="checkbox"><input type="checkbox" value="maps" checked> Map order</label>
-        <label class="checkbox"><input type="checkbox" value="leaders" checked> Series leaders</label>
-        <label class="checkbox"><input type="checkbox" value="spotlight" checked> Player spotlight</label>
-        <label class="checkbox"><input type="checkbox" value="sidebars" checked> Team sidebars</label>
-      </div>
       <div class="url-box">
         <input id="overlay-url" readonly>
         <button id="copy-url" class="btn btn-primary">Copy</button>
       </div>
-      <p class="hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080. Add it more than once with different boxes ticked to place elements on separate scenes.</p>
+      <p class="hint">In OBS: Sources → + → Browser, paste this URL, set 1920 × 1080. One source is all you need: everything on it is switched from On stream above.</p>
       <div class="preview" id="preview" style="margin-top:14px"><iframe id="preview-frame" title="Overlay preview"></iframe></div>
     </div>
   </section>
@@ -338,9 +342,10 @@
     for (const btn of document.querySelectorAll('#page-btns .btn')) {
       btn.classList.toggle('active', (btn.dataset.page || null) === (snap.state.intermission_page || null));
     }
-    const sidebarsOn = Boolean(snap.state.sidebars);
-    $('sidebars-btn').textContent = sidebarsOn ? 'Hide player stats' : 'Show player stats on sides';
-    $('sidebars-btn').className = sidebarsOn ? 'btn btn-primary' : 'btn';
+    for (const box of document.querySelectorAll('#switches input')) {
+      const el = box.dataset.el;
+      box.checked = el === 'sidebars' ? Boolean(snap.state.sidebars) : snap.state.elements[el] !== false;
+    }
     $('live-pill').textContent = snap.series
       ? `${snap.series.name} · ${snap.teams.A.wins}–${snap.teams.B.wins}` : 'No series yet';
 
@@ -365,14 +370,8 @@
     }
   }
 
-  function overlayUrl() {
-    const picked = [...document.querySelectorAll('#show-opts input:checked')].map((i) => i.value);
-    const base = `${location.origin}/overlay`;
-    return picked.length === 6 ? base : `${base}?show=${picked.join(',')}`;
-  }
-
   function refreshUrl() {
-    const url = overlayUrl();
+    const url = `${location.origin}/overlay`;
     $('overlay-url').value = url;
     if ($('preview-frame').src !== url) $('preview-frame').src = url;
   }
@@ -388,10 +387,12 @@
     input.onchange = () => update({ team_names: { [input.dataset.team]: input.value } });
     input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); e.stopPropagation(); };
   }
-  $('sidebars-btn').onclick = () => update({ sidebars: !(snap && snap.state.sidebars) });
+  for (const box of document.querySelectorAll('#switches input')) {
+    box.onchange = () => update(box.dataset.el === 'sidebars'
+      ? { sidebars: box.checked } : { elements: { [box.dataset.el]: box.checked } });
+  }
   $('clear-spot').onclick = () => update({ spotlight: null });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') update({ spotlight: null }); });
-  $('show-opts').onchange = refreshUrl;
   function copyButton(buttonId, inputId) {
     $(buttonId).onclick = async () => {
       try { await navigator.clipboard.writeText($(inputId).value); $(buttonId).textContent = 'Copied'; }

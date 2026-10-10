@@ -141,12 +141,13 @@ top-right switcher, or start a new one with **+ New series**.
 ### Streaming (OBS overlay)
 
 Click **Caster** (top right) to open the caster controls. Copy the overlay URL into OBS as a
-**Browser** source at 1920 × 1080. It shows the series score, the last match's result and
-MVP, series leaders, and a player card and team stat sidebars you pop on and off from the
-caster page. It updates
-by itself as you add matches. The caster page can also set team names for the overlay only
-(say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats. Tick fewer boxes to get a URL with only some elements, so you
-can place them on different scenes.
+**Browser** source at 1920 × 1080. The **On stream** switches on the caster page turn each
+part on or off: the scorebug, the last match's result and MVP, the map order, series leaders
+and team stat sidebars. Click a pilot to pop up their player card. It all updates by itself as
+you add matches. The caster page can also set team names for the overlay only (say,
+"Emperors" instead of "[EmP] Emperors") without changing them in the stats. To put elements
+on different sources, add `?show=score,last` (any of `score, last, maps, leaders, spotlight,
+sidebars`) to a source's URL.
 
 Set the night's **map order** on the caster page: pick or type each map (and mode), drag to
 reorder. The overlay shows the order and ticks off the next map each time you add a match.
@@ -393,7 +394,7 @@ GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
 GET    /api/overlay/intermission               full between-games breakdown for the live series
-PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, intermission_page?, map_plan?}; null series = newest
+PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, elements?, intermission_page?, map_plan?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
 PUT    /api/settings/token                     {token}
 DELETE /api/settings/token                     reverts to .env, if any
