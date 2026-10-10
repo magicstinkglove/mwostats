@@ -376,10 +376,13 @@
     }
   }
 
+  // The previews load with a fresh query string so the browser never shows a cached copy of an older page.
+  const FRESH = `?v=${Date.now()}`;
+
   function refreshUrl() {
     const url = `${location.origin}/overlay`;
     $('overlay-url').value = url;
-    if ($('preview-frame').src !== url) $('preview-frame').src = url;
+    if (!$('preview-frame').src) $('preview-frame').src = url + FRESH;
   }
 
   function fitPreview() {
@@ -427,7 +430,7 @@
     try { await loadSeries(); } catch (err) { banner(err.message); }
     refreshUrl();
     $('inter-url').value = `${location.origin}/intermission`;
-    $('inter-frame').src = '/intermission';
+    $('inter-frame').src = `/intermission${FRESH}`;
     fitPreview();
     await poll();
     // Rosters and the score move as matches are added in the main app.
