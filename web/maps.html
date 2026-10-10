@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MWO Map Rotation</title>
+  <!-- OBS browser source for a map rotation scene: 1920x1080, full screen.
+       Shows the caster's map order from /caster, ticking maps off as matches are added.
+       Polls the app every 3s. -->
+  <style>
+    /* Laid out at 1920x1080 and scaled to the source size (see fit() below). */
+    body { transform-origin: 0 0; }
+    :root {
+      --team-a: #f0a04b;
+      --team-b: #58b6dd;
+      --ink: #f4f6f8;
+      --dim: #9aa4b0;
+      --faint: rgba(255,255,255,.07);
+      --bg: #0b0f14;
+      --card: #131a22;
+      --warn: #d29922;
+      --font: "Bahnschrift", "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+    }
+    html, body { margin: 0 !important; overflow: hidden; }
+    body {
+      width: 1920px; height: 1080px; position: relative; font-family: var(--font); color: var(--ink);
+      background:
+        radial-gradient(1200px 700px at 0% 0%, rgba(240,160,75,.10), transparent 60%),
+        radial-gradient(1200px 700px at 100% 100%, rgba(88,182,221,.10), transparent 60%),
+        repeating-linear-gradient(135deg, rgba(255,255,255,.015) 0 2px, transparent 2px 14px),
+        var(--bg);
+    }
+    .num { font-variant-numeric: tabular-nums; }
+
+    header {
+      position: absolute; top: 0; left: 0; right: 0; height: 150px;
+      display: grid; grid-template-columns: 1fr 120px 560px 120px 1fr; align-items: center;
+      background: linear-gradient(180deg, rgba(0,0,0,.55), rgba(0,0,0,.15));
+      border-bottom: 1px solid var(--faint);
+    }
+    .h-name { font-size: 46px; font-weight: 800; padding: 0 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .h-name.a { text-align: right; color: var(--team-a); }
+    .h-name.b { color: var(--team-b); }
+    .h-wins { display: grid; place-items: center; height: 96px; font-size: 64px; font-weight: 800; color: #0d1218; }
+    .h-wins.a { background: var(--team-a); clip-path: polygon(14px 0, 100% 0, 100% 100%, 0 100%); }
+    .h-wins.b { background: var(--team-b); clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 100%, 0 100%); }
+    .h-mid { text-align: center; line-height: 1.15; }
+    .h-mid .t1 { font-size: 16px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); }
+    .h-mid .t2 { font-size: 34px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .h-mid .t3 { font-size: 18px; color: var(--dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; display: flex; flex-direction: column; justify-content: center; }
+    .title { font-size: 20px; letter-spacing: 5px; text-transform: uppercase; color: var(--dim); margin: 0 0 22px; }
+    .title b { color: var(--ink); letter-spacing: 1px; font-size: 30px; text-transform: none; margin-right: 18px; }
+    #grid { display: grid; gap: 18px; }
+
+    .map {
+      position: relative; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;
+      padding: 18px 22px; background: var(--card); border: 1px solid var(--faint); border-bottom: 6px solid var(--faint);
+      overflow: hidden;
+    }
+    .map .n { font-size: 20px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; }
+    .map .m { font-size: 38px; font-weight: 800; line-height: 1.05; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .map .mode { font-size: 20px; color: var(--dim); margin-top: 4px; }
+    .map .res { font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .map .res .w { color: var(--c); }
+    .map .res .s { color: var(--dim); font-weight: 600; margin-left: 8px; }
+    .map .alt { font-size: 16px; color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .map.done { border-bottom-color: var(--c); }
+    .map.done .m { color: var(--dim); }
+    .map.done::after {
+      content: "✓"; position: absolute; top: 12px; right: 18px; font-size: 30px; font-weight: 800; color: var(--c);
+    }
+    .map.next { background: var(--ink); color: #0d1218; border-color: var(--ink); box-shadow: 0 0 0 4px rgba(244,246,248,.18), 0 18px 50px rgba(0,0,0,.5); }
+    .map.next .n, .map.next .mode { color: #3a434e; }
+    .map.next .tag {
+      position: absolute; top: 14px; right: 18px; font-size: 16px; font-weight: 800; letter-spacing: 3px;
+      padding: 4px 10px; background: #0d1218; color: var(--ink); animation: pulse 2.4s ease-in-out infinite;
+    }
+    .map.upcoming { opacity: .8; }
+    @keyframes pulse { 50% { opacity: .55; } }
+
+    /* Compact cards when the list is long. */
+    #grid.compact .map { padding: 12px 16px; }
+    #grid.compact .map .m { font-size: 28px; }
+    #grid.compact .map .n, #grid.compact .map .mode, #grid.compact .map .res { font-size: 16px; }
+    #grid.compact .map .alt { font-size: 13px; }
+    #grid.compact .map.done::after { font-size: 22px; top: 8px; }
+    #grid.compact .map.next .tag { font-size: 12px; top: 10px; }
+
+    .empty { flex: 1; display: grid; place-items: center; font-size: 32px; color: var(--dim); }
+    footer { position: absolute; left: 70px; right: 70px; bottom: 40px; display: flex; align-items: center; gap: 26px; }
+    footer .line { flex: 1; height: 3px; background: var(--faint); }
+    .brand { font-size: 15px; color: var(--dim); letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="h-name a" id="h-name-a"></div>
+  <div class="h-wins a num" id="h-wins-a">0</div>
+  <div class="h-mid">
+    <div class="t1">Map rotation</div>
+    <div class="t2" id="h-next">—</div>
+    <div class="t3" id="h-series"></div>
+  </div>
+  <div class="h-wins b num" id="h-wins-b">0</div>
+  <div class="h-name b" id="h-name-b"></div>
+</header>
+
+<main id="main"></main>
+
+<footer>
+  <div class="line"></div>
+  <span class="brand">MWO MATCH STATS</span>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  // OBS's built-in browser can be an older Chromium without replaceChildren (Chrome 86+).
+  if (!Element.prototype.replaceChildren) {
+    Element.prototype.replaceChildren = function (...nodes) {
+      while (this.firstChild) this.removeChild(this.firstChild);
+      this.append(...nodes);
+    };
+  }
+
+  function fit() {
+    const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080) || 1;
+    document.body.style.transform = scale === 1 ? '' : `scale(${scale})`;
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  const $ = (id) => document.getElementById(id);
+  const color = (team) => (team === 'A' ? 'var(--team-a)' : team === 'B' ? 'var(--team-b)' : 'var(--dim)');
+  const norm = (v) => (v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  function h(tag, attrs = {}, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === 'class') node.className = v;
+      else if (k === 'text') node.textContent = v;
+      else if (k === 'style') node.setAttribute('style', v);
+      else node.setAttribute(k, v);
+    }
+    for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c);
+    return node;
+  }
+
+  function renderHeader(d) {
+    if (!d.series) { $('h-next').textContent = 'No series yet'; return; }
+    $('h-name-a').textContent = d.teams.A.name;
+    $('h-name-b').textContent = d.teams.B.name;
+    $('h-wins-a').textContent = d.teams.A.wins;
+    $('h-wins-b').textContent = d.teams.B.wins;
+    const plan = d.map_plan || [];
+    const next = plan.find((m) => m.status === 'next');
+    $('h-next').textContent = next ? `Up next: ${next.map}` : plan.length && d.matches_played >= plan.length ? 'Rotation complete' : 'Starting soon';
+    $('h-series').textContent = d.series.name;
+  }
+
+  function card(m, d) {
+    const top = h('div', {}, h('div', { class: 'n', text: `Match ${m.number}` }), h('div', { class: 'm', text: m.map }),
+      m.mode ? h('div', { class: 'mode', text: m.mode }) : null);
+    let bottom = null;
+    if (m.status === 'done') {
+      const score = m.score && m.winner && m.score[m.winner] !== undefined
+        ? `${m.score[m.winner]}–${m.score[m.winner === 'A' ? 'B' : 'A']}` : '';
+      const off = m.played_map && norm(m.played_map) !== norm(m.map);
+      bottom = h('div', {},
+        h('div', { class: 'res' }, m.winner
+          ? [h('span', { class: 'w', text: d.teams[m.winner].name }), score ? h('span', { class: 's num', text: score }) : null]
+          : 'Played'),
+        off ? h('div', { class: 'alt', text: `Played on ${m.played_map}` }) : null);
+    }
+    return h('div', { class: `map ${m.status}`, style: `--c:${color(m.winner)}` },
+      m.status === 'next' ? h('span', { class: 'tag', text: 'UP NEXT' }) : null, top, bottom);
+  }
+
+  let key = null;
+  function render(d) {
+    renderHeader(d);
+    const plan = d.series ? (d.map_plan || []) : [];
+    const k = JSON.stringify([plan, d.teams, Boolean(d.series)]);
+    if (k === key) return;
+    key = k;
+    const main = $('main');
+    if (!plan.length) {
+      main.replaceChildren(h('div', { class: 'empty', text: d.series ? 'No map order set yet' : 'No series yet' }));
+      return;
+    }
+    const cols = plan.length <= 4 ? plan.length : plan.length <= 8 ? 4 : 5;
+    const rows = Math.ceil(plan.length / cols);
+    const grid = h('div', { id: 'grid', class: rows > 2 ? 'compact' : null }, plan.map((m) => card(m, d)));
+    // Rows share the available height, capped so a short list doesn't stretch into tall cards.
+    const rowHeight = Math.min(rows > 2 ? 200 : 260, Math.floor((660 - 18 * (rows - 1)) / rows));
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+    grid.style.gridAutoRows = `${rowHeight}px`;
+    const done = plan.filter((m) => m.status === 'done').length;
+    main.replaceChildren(
+      h('h2', { class: 'title' }, h('b', { text: 'Map order' }), `${done} of ${plan.length} played`),
+      grid);
+  }
+
+  async function poll() {
+    try {
+      const response = await fetch('/api/overlay', { cache: 'no-store' });
+      if (!response.ok) return;
+      render(await response.json());
+    } catch (_) {
+      // App restarting: keep the last frame.
+    }
+  }
+
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>
+</body>
+</html>

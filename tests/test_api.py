@@ -486,3 +486,11 @@ def test_deleting_a_series_does_not_delete_the_cached_matches(client):
     ).json()
     assert result["ingest"][0]["status"] == "stored"
     assert client.fake.requested == ["m1"]  # never fetched a second time
+
+
+@pytest.mark.parametrize("path", ["/", "/overlay", "/intermission", "/maps", "/caster"])
+def test_pages_are_served_uncached(client, path):
+    response = client.get(path)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "no-cache"

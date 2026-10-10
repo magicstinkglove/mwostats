@@ -81,6 +81,12 @@ def intermission_page() -> FileResponse:
     return FileResponse(WEB_DIR / "intermission.html", headers=_NO_CACHE)
 
 
+@app.get("/maps")
+def maps_page() -> FileResponse:
+    """Full-screen map rotation scene for OBS."""
+    return FileResponse(WEB_DIR / "maps.html", headers=_NO_CACHE)
+
+
 @app.get("/caster")
 def caster_page() -> FileResponse:
     """Caster controls for the overlay: live series and player spotlight."""

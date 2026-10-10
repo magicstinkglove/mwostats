@@ -149,11 +149,12 @@ with switches sitting right on the preview next to the part they control.
   add `?show=score,last` (any of `score, last, leaders, spotlight, sidebars`) to a source's URL.
 - **Between-games scene:** a second scene to cut to between matches. It rotates through the
   last match's box score, a head-to-head team comparison, each team's pilots and series awards;
-  pick a page on the preview to hold it. Set the night's **map order** under it (pick or type
-  each map and mode, drag to reorder); the scene shows the order and ticks off a map each time
-  you add a match.
+  pick a page on the preview to hold it. Its header names the next planned map.
+- **Map rotation scene:** a third scene showing the night's **map order**. Set it under the
+  preview (pick or type each map and mode, drag to reorder); each match you add ticks off the
+  next map with its winner and score, and the next one is highlighted.
 
-Both update by themselves as you add matches. The caster page can also set team names for the
+All three update by themselves as you add matches. The caster page can also set team names for the
 stream only (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats.
 
 ---
@@ -363,9 +364,9 @@ app/
   intermission.py  full-screen between-games breakdown
   metrics/         auto-discovered metric modules
   routes/          matches, series, metrics, settings, players
-web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, caster.html (no build step)
+web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, maps.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             122 tests
+tests/             134 tests
 ```
 
 ### Caching
@@ -408,7 +409,7 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-122 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
+134 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
 disjoint groups), clan-tag auto-naming, normalization of partial/malformed payloads, metric
 values on summary and team-scoped views, the HTTP layer with the network mocked, token
 resolution/masking, Jarl's List caching (incl. the per-request-commit regression test), and a

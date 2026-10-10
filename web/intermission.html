@@ -53,30 +53,7 @@
     .h-mid .t3 { font-size: 18px; color: var(--dim); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* ---------------------------------------------------- pages */
-    main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; transition: top .4s; }
-    body.has-maps main { top: 262px; }
-
-    /* ---------------------------------------------------- map order strip */
-    #mapstrip {
-      position: absolute; top: 172px; left: 70px; right: 70px; height: 64px;
-      display: flex; align-items: stretch; gap: 10px;
-    }
-    #mapstrip[hidden] { display: none; }
-    .ms-label { display: flex; align-items: center; font-size: 15px; letter-spacing: 4px; text-transform: uppercase; color: var(--dim); padding-right: 6px; }
-    .ms {
-      flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px;
-      padding: 0 16px; background: var(--card); border: 1px solid var(--faint); border-bottom: 4px solid var(--faint);
-    }
-    .ms .top { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; overflow: hidden; }
-    .ms .n { font-size: 15px; color: var(--dim); }
-    .ms .m { font-size: 22px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
-    .ms .sub { font-size: 15px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ms.done { border-bottom-color: var(--c); }
-    .ms.done .m { color: var(--dim); }
-    .ms.done .sub b { color: var(--c); }
-    .ms.next { background: var(--ink); color: #0d1218; border-color: var(--ink); }
-    .ms.next .n, .ms.next .sub { color: #3a434e; }
-    .ms.upcoming { opacity: .75; }
+    main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; }
     .page { position: absolute; inset: 0; opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; pointer-events: none; }
     .page.on { opacity: 1; transform: none; }
     .page-title { font-size: 20px; letter-spacing: 5px; text-transform: uppercase; color: var(--dim); margin: 0 0 18px; }
@@ -162,8 +139,6 @@
   <div class="h-wins b num" id="h-wins-b">0</div>
   <div class="h-name b" id="h-name-b"></div>
 </header>
-
-<div id="mapstrip" hidden></div>
 
 <main>
   <section class="page" id="page-recap"></section>
@@ -352,30 +327,6 @@
     $('h-series').textContent = next ? [next.map, next.mode].filter(Boolean).join(' · ') : d.series.name;
   }
 
-  let mapKey = null;
-  function renderMapStrip(d) {
-    const strip = $('mapstrip');
-    const plan = d.series ? (d.map_plan || []) : [];
-    const on = plan.length > 0 && !(d.state.elements && d.state.elements.maps === false);
-    strip.hidden = !on;
-    document.body.classList.toggle('has-maps', on);
-    const key = JSON.stringify([on, plan, d.teams]);
-    if (!on || key === mapKey) return;
-    mapKey = key;
-    strip.replaceChildren(h('span', { class: 'ms-label', text: 'Maps' }), ...plan.map((m) => {
-      let sub;
-      if (m.status === 'done') {
-        const score = m.score && m.winner && m.score[m.winner] !== undefined
-          ? ` ${m.score[m.winner]}–${m.score[m.winner === 'A' ? 'B' : 'A']}` : '';
-        sub = m.winner ? h('div', { class: 'sub' }, h('b', { text: `${d.teams[m.winner].name}${score}` })) : h('div', { class: 'sub', text: 'Played' });
-      } else {
-        sub = h('div', { class: 'sub', text: [m.status === 'next' ? 'UP NEXT' : null, m.mode].filter(Boolean).join(' · ') });
-      }
-      return h('div', { class: `ms ${m.status}`, style: `--c:${color(m.winner)}` },
-        h('div', { class: 'top' }, h('span', { class: 'n', text: m.number }), h('span', { class: 'm', text: m.map })), sub);
-    }));
-  }
-
   function renderPages(d) {
     const available = [];
     for (const page of d.pages) {
@@ -408,7 +359,6 @@
       if (!response.ok) return;
       data = await response.json();
       renderHeader(data);
-      renderMapStrip(data);
       available = renderPages(data);
       if (!available.length) {
         $('page-recap').replaceChildren(h('div', { class: 'empty', text: data.series ? 'Waiting for the first match…' : 'No series yet' }));

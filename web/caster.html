@@ -144,7 +144,6 @@
     <div class="panel-body">
       <div class="preview" id="inter-preview">
         <iframe id="inter-frame" title="Between-games preview"></iframe>
-        <button class="ps" data-el="maps" style="right:3.6%;top:10.2%">Map order</button>
         <div class="ps-pages" id="page-btns">
           <button class="ps-page" data-page="">Rotate</button>
           <button class="ps-page" data-page="recap">Last match</button>
@@ -155,7 +154,21 @@
       </div>
       <p class="hint">Pick a page at the bottom of the preview to hold it, or Rotate to cycle every 15 seconds (add <code>?rotate=20</code> to the URL to change that).</p>
 
-      <div class="panel-subhead">
+      <div class="url-box">
+        <input id="inter-url" readonly>
+        <button id="copy-inter" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it between games.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Map rotation scene</h2></div>
+    <div class="panel-body">
+      <div class="preview" id="maps-preview">
+        <iframe id="maps-frame" title="Map rotation preview"></iframe>
+      </div>
+      <div class="panel-subhead" style="margin-top:14px">
         <h3>Map order</h3>
         <button id="add-map" class="btn">+ Add map</button>
       </div>
@@ -164,10 +177,10 @@
       <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map; a yellow status means it was played on a different map than planned.</p>
 
       <div class="url-box">
-        <input id="inter-url" readonly>
-        <button id="copy-inter" class="btn btn-primary">Copy</button>
+        <input id="maps-url" readonly>
+        <button id="copy-maps" class="btn btn-primary">Copy</button>
       </div>
-      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it between games.</p>
+      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it before each drop.</p>
     </div>
   </section>
 </main>
@@ -386,7 +399,7 @@
   }
 
   function fitPreview() {
-    for (const [box, frame] of [['preview', 'preview-frame'], ['inter-preview', 'inter-frame']]) {
+    for (const [box, frame] of [['preview', 'preview-frame'], ['inter-preview', 'inter-frame'], ['maps-preview', 'maps-frame']]) {
       $(frame).style.transform = `scale(${$(box).clientWidth / 1920})`;
     }
   }
@@ -417,6 +430,7 @@
   }
   copyButton('copy-url', 'overlay-url');
   copyButton('copy-inter', 'inter-url');
+  copyButton('copy-maps', 'maps-url');
   for (const btn of document.querySelectorAll('#page-btns .ps-page')) {
     btn.onclick = () => update({ intermission_page: btn.dataset.page || null });
   }
@@ -431,6 +445,8 @@
     refreshUrl();
     $('inter-url').value = `${location.origin}/intermission`;
     $('inter-frame').src = `/intermission${FRESH}`;
+    $('maps-url').value = `${location.origin}/maps`;
+    $('maps-frame').src = `/maps${FRESH}`;
     fitPreview();
     await poll();
     // Rosters and the score move as matches are added in the main app.
