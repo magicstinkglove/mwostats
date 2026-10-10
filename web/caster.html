@@ -168,6 +168,11 @@
       <div class="preview" id="maps-preview">
         <iframe id="maps-frame" title="Map rotation preview"></iframe>
       </div>
+      <div class="url-box">
+        <input id="maps-url" readonly>
+        <button id="copy-maps" class="btn btn-primary">Copy</button>
+      </div>
+      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it before each drop.</p>
       <div class="panel-subhead" style="margin-top:14px">
         <h3>Map order</h3>
         <button id="add-map" class="btn">+ Add map</button>
@@ -175,12 +180,6 @@
       <ol class="map-list" id="map-list"></ol>
       <datalist id="map-choices"></datalist>
       <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the next map; a yellow status means it was played on a different map than planned.</p>
-
-      <div class="url-box">
-        <input id="maps-url" readonly>
-        <button id="copy-maps" class="btn btn-primary">Copy</button>
-      </div>
-      <p class="hint">In OBS: add this as a Browser source (1920 × 1080) on its own scene and cut to it before each drop.</p>
     </div>
   </section>
 </main>
