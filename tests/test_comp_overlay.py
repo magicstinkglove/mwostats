@@ -220,6 +220,40 @@ def test_map_plan_pairs_results_by_map_not_by_position(client):  # noqa: F811
     assert body["off_plan"] == [{"number": 1, "map": "Frozen City"}]
 
 
+def test_map_plan_slots_take_match_ids_in_order(client):  # noqa: F811
+    series = create_series(client, "League Night")
+    plan = [{"map": "Frozen City", "mode": "Skirmish"}, {"map": "", "mode": ""}]
+
+    # A blank row fills its map and mode in from the match.
+    body = client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 1, "match_id": "m2"}).json()
+    assert [(m["map"], m["mode"], m["match_id"], m["status"]) for m in body["map_plan"]] == [
+        ("Frozen City", "Skirmish", None, "next"), ("Canyon Network", "Skirmish", "m2", "done")]
+    assert body["matches_played"] == 1
+    assert "m2" in client.get(f"/api/series/{series['id']}").json()["match_ids"]
+
+    # A pinned match wins over pairing by map: m3 (on Frozen City) isn't pinned, so it ticks
+    # off the Frozen City row, but once m4 is pinned there, m3 is off-plan.
+    client.post(f"/api/series/{series['id']}/matches", json={"match_ids": "m3"})
+    body = client.get("/api/overlay").json()
+    assert body["map_plan"][0]["status"] == "done"
+    plan = [{k: m[k] for k in ("map", "mode", "match_id")} for m in body["map_plan"]]
+    body = client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 0, "match_id": "m4"}).json()
+    assert body["map_plan"][0]["match_id"] == "m4"
+    assert [m["map"] for m in body["off_plan"]] == ["Frozen City"]
+
+    # Clearing a slot's match leaves the match in the series.
+    body = client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 1, "match_id": None}).json()
+    assert body["map_plan"][1]["match_id"] is None
+    assert body["matches_played"] == 3
+
+
+def test_map_plan_slot_match_errors(client):  # noqa: F811
+    create_series(client, "League Night")
+    plan = [{"map": "Frozen City"}]
+    assert client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 3, "match_id": "m1"}).status_code == 400
+    assert client.post("/api/overlay/map-plan/match", json={"map_plan": plan, "index": 0, "match_id": "nope"}).status_code == 502
+
+
 def test_api_map_codes_match_planned_names():
     from app.overlay import _same_map, map_display_name
 

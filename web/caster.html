@@ -57,7 +57,7 @@
     .url-box input { font-family: var(--mono); font-size: 12px; }
     .map-list { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 6px; }
     .map-row {
-      display: grid; grid-template-columns: 28px 30px 1fr 160px 230px 36px; align-items: center; gap: 10px;
+      display: grid; grid-template-columns: 28px 30px 1fr 140px 170px 200px 36px; align-items: center; gap: 10px;
       padding: 6px 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
     }
     .map-row.dragging { opacity: .4; }
@@ -70,6 +70,7 @@
       border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0; box-sizing: border-box;
     }
     .map-row .status { font-size: 12px; color: var(--muted); }
+    .map-row input.mid { font-family: var(--mono); font-size: 12px; }
     .map-row .status.done { color: var(--ok); }
     .off-plan { font-size: 12px; color: var(--warn); margin: 8px 0 0; }
     .map-row .status.next { color: var(--text); font-weight: 600; }
@@ -182,7 +183,7 @@
       <ol class="map-list" id="map-list"></ol>
       <datalist id="map-choices"></datalist>
       <p class="off-plan" id="off-plan" hidden></p>
-      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Each match you add in the stats app ticks off the planned map it was played on; a match on a map that isn't planned is listed in yellow and ticks off nothing.</p>
+      <p class="hint">The maps in the order they'll be played. Drag ⠿ to reorder, × to remove. Paste each match's ID on its map as it finishes; leave the map blank and it fills in from the match. Matches added in the stats app instead tick off the planned map they were played on; one on a map that isn't planned is listed in yellow.</p>
     </div>
   </section>
 </main>
@@ -249,11 +250,11 @@
 
   function syncPlanFromServer() {
     if (!snap || !snap.series) { plan = []; planSeries = null; renderPlan(); return; }
-    const server = (snap.map_plan || []).map((p) => ({ map: p.map, mode: p.mode || '' }));
+    const server = (snap.map_plan || []).map((p) => ({ map: p.map, mode: p.mode || '', match_id: p.match_id || '' }));
     const blanks = plan.filter((p) => !p.map.trim()).length;
     const local = plan.filter((p) => p.map.trim());
     if (planSeries !== snap.series.id || JSON.stringify(server) !== JSON.stringify(local)) {
-      plan = server.concat(planSeries === snap.series.id ? Array.from({ length: blanks }, () => ({ map: '', mode: '' })) : []);
+      plan = server.concat(planSeries === snap.series.id ? Array.from({ length: blanks }, () => ({ map: '', mode: '', match_id: '' })) : []);
       planSeries = snap.series.id;
     }
     renderPlan();
@@ -302,13 +303,18 @@
       mode.value = slot.mode || '';
       mode.onchange = () => { slot.mode = mode.value; savePlan(0); };
 
+      // The match played on this map: paste its ID and it's fetched and added to the series.
+      const mid = Object.assign(document.createElement('input'), { className: 'mid', value: slot.match_id || '', placeholder: 'Match ID' });
+      mid.onchange = () => setSlotMatch(index, mid.value.trim(), status);
+      mid.onkeydown = (e) => { if (e.key === 'Enter') mid.blur(); e.stopPropagation(); };
+
       const st = statusFor(index);
       const status = Object.assign(document.createElement('span'), { className: `status ${st.cls}`, textContent: st.text });
 
       const remove = Object.assign(document.createElement('button'), { className: 'remove', textContent: '×', title: 'Remove' });
       remove.onclick = () => { plan.splice(index, 1); renderPlan(); savePlan(0); };
 
-      for (const el of [map, mode, remove]) {
+      for (const el of [map, mode, mid, remove]) {
         // Typing or clicking in a control shouldn't start a row drag.
         el.onmousedown = () => { row.draggable = false; };
         el.onblur = () => { row.draggable = true; };
@@ -337,13 +343,35 @@
         savePlan(0);
       };
 
-      row.append(grip, idx, map, mode, status, remove);
+      row.append(grip, idx, map, mode, mid, status, remove);
       return row;
     }));
   }
 
+  async function setSlotMatch(index, matchId, status) {
+    clearTimeout(saveTimer);
+    saveTimer = 'busy';  // hold server syncs until this lands
+    status.className = 'status';
+    status.textContent = matchId ? 'Fetching match…' : '';
+    try {
+      snap = await api('/api/overlay/map-plan/match', {
+        method: 'POST', body: JSON.stringify({ map_plan: plan, index, match_id: matchId || null }),
+      });
+      banner('');
+      saveTimer = null;
+      planSeries = null;  // take the server's copy, which may have filled in the map
+      syncPlanFromServer();
+      render();
+      nudgePreviews();
+    } catch (err) {
+      saveTimer = null;
+      banner(err.message);
+      renderPlan();
+    }
+  }
+
   $('add-map').onclick = () => {
-    plan.push({ map: '', mode: '' });
+    plan.push({ map: '', mode: '', match_id: '' });
     renderPlan();
     const inputs = $('map-list').querySelectorAll('input');
     inputs[inputs.length - 1].focus();

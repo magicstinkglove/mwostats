@@ -151,9 +151,10 @@ with switches sitting right on the preview next to the part they control.
   last match's box score, a head-to-head team comparison, each team's pilots and series awards;
   pick a page on the preview to hold it. Its header names the next planned map.
 - **Map rotation scene:** a third scene showing the night's **map order**. Set it under the
-  preview (pick or type each map and mode, drag to reorder); each match you add ticks off the
-  planned map it was actually played on, with its winner and score, and the first open map is
-  highlighted as up next. A match on a map that isn't in the plan ticks off nothing.
+  preview (pick or type each map and mode, drag to reorder). As each match finishes, paste its
+  ID on its map: it's fetched, added to the series and shown there with its winner and score
+  (a blank row fills its map in from the match). Matches added in the stats app instead tick off
+  the planned map they were played on. The first open map is highlighted as up next.
 
 All three update the moment anything changes (a switch flipped, a match added), and elements ease in and out. The caster page can also set team names for the
 stream only (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats.
@@ -368,7 +369,7 @@ app/
   routes/          matches, series, metrics, settings, players
 web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, maps.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             138 tests
+tests/             140 tests
 ```
 
 ### Caching
@@ -395,6 +396,7 @@ GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own pag
 GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
+POST   /api/overlay/map-plan/match             {map_plan, index, match_id}: put a match on one map of the order (fetches it, adds it to the series)
 GET    /api/overlay/events                     server-sent events: a message whenever anything on stream may have changed
 GET    /api/overlay/intermission               full between-games breakdown for the live series
 PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, elements?, intermission_page?, map_plan?}; null series = newest
@@ -412,7 +414,7 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-138 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
+140 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
 disjoint groups), clan-tag auto-naming, normalization of partial/malformed payloads, metric
 values on summary and team-scoped views, the HTTP layer with the network mocked, token
 resolution/masking, Jarl's List caching (incl. the per-request-commit regression test), and a

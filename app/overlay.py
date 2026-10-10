@@ -92,7 +92,8 @@ MAX_PLANNED_MAPS = 20
 
 
 def set_map_plan(conn: sqlite3.Connection, plan: list[dict[str, str | None]]) -> None:
-    """The live series' map order: [{map, mode}], first drop first. Blank maps are dropped."""
+    """The live series' map order: [{map, mode, match_id}], first drop first. Blank maps
+    are dropped. match_id, when set, is the match played on that map."""
     state = get_state(conn)
     series_id = _live_series_id(conn, state)
     if series_id is None:
@@ -101,7 +102,8 @@ def set_map_plan(conn: sqlite3.Connection, plan: list[dict[str, str | None]]) ->
     for slot in plan[:MAX_PLANNED_MAPS]:
         name = str(slot.get("map") or "").strip()[:40]
         if name:
-            cleaned.append({"map": name, "mode": str(slot.get("mode") or "").strip()[:20] or None})
+            cleaned.append({"map": name, "mode": str(slot.get("mode") or "").strip()[:20] or None,
+                            "match_id": str(slot.get("match_id") or "").strip()[:40] or None})
     state["map_plans"][str(series_id)] = cleaned
     set_app_setting(conn, _STATE_KEY, json.dumps(state))
 
@@ -126,19 +128,31 @@ def map_display_name(played: str | None) -> str | None:
 
 
 def _map_plan(ctx: SeriesContext, plan: list[dict]) -> list[dict[str, Any]]:
-    """The planned maps with progress. Each match, oldest first, ticks off the first
-    open slot for the map it was actually played on; a match on a map that isn't in
-    the plan ticks off nothing. The first open slot is up next."""
-    out = [{"number": index + 1, "map": slot["map"], "mode": slot.get("mode"), "status": "upcoming",
-            "winner": None, "winner_name": None, "score": None, "match_number": None}
+    """The planned maps with progress. A slot given a match ID shows that match. Every
+    other match, oldest first, ticks off the first open slot without a match ID for the
+    map it was actually played on; a match on a map that isn't in the plan ticks off
+    nothing. The first open slot is up next."""
+    out = [{"number": index + 1, "map": slot["map"], "mode": slot.get("mode"), "match_id": slot.get("match_id"),
+            "status": "upcoming", "winner": None, "winner_name": None, "score": None, "match_number": None}
            for index, slot in enumerate(plan)]
-    for number, match in enumerate(ctx.matches, start=1):
-        entry = next((e for e in out if e["status"] == "upcoming" and _same_map(e["map"], match.map_name)), None)
-        if entry is None:
-            continue
+    numbered = {match.match_id: (number, match) for number, match in enumerate(ctx.matches, start=1)}
+    pinned = {e["match_id"] for e in out if e["match_id"]}
+
+    def tick(entry: dict[str, Any], number: int, match: Match) -> None:
         winner = ctx.match_winner(match)
         entry.update(status="done", winner=winner, winner_name=ctx.team_name(winner) if winner else None,
                      score=_team_score(ctx, match), match_number=number)
+
+    for entry in out:
+        if entry["match_id"] in numbered:
+            tick(entry, *numbered[entry["match_id"]])
+    for number, match in enumerate(ctx.matches, start=1):
+        if match.match_id in pinned:
+            continue
+        entry = next((e for e in out if e["status"] == "upcoming" and not e["match_id"]
+                      and _same_map(e["map"], match.map_name)), None)
+        if entry is not None:
+            tick(entry, number, match)
     upcoming = next((e for e in out if e["status"] == "upcoming"), None)
     if upcoming:
         upcoming["status"] = "next"

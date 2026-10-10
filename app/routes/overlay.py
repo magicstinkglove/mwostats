@@ -9,9 +9,21 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .. import live
-from ..db import get_series
+from ..db import add_matches_to_series, get_series, load_match
 from ..intermission import PAGES, intermission
-from ..overlay import ELEMENTS, MAX_PLANNED_MAPS, get_state, set_map_plan, set_state, set_team_names, snapshot
+from ..overlay import (
+    ELEMENTS,
+    MAX_PLANNED_MAPS,
+    MODE_CHOICES,
+    _live_series_id,
+    get_state,
+    map_display_name,
+    set_map_plan,
+    set_state,
+    set_team_names,
+    snapshot,
+)
+from ..service import ingest_matches, maybe_autoname_teams
 from .deps import get_conn
 
 router = APIRouter(prefix="/api/overlay", tags=["overlay"])
@@ -32,6 +44,13 @@ class OverlayStateRequest(BaseModel):
     # Overlay-only names for the live series, e.g. {"A": "Emperors"}; blank/null
     # reverts that team to its name in the app.
     team_names: dict[str, str | None] | None = None
+
+
+class SlotMatchRequest(BaseModel):
+    # The caster's whole map order as shown (blank rows included, so `index` lines up).
+    map_plan: list[dict[str, str | None]] = Field(max_length=MAX_PLANNED_MAPS)
+    index: int = Field(ge=0)
+    match_id: str | None = None  # null/blank clears the slot's match
 
 
 @router.get("")
@@ -73,5 +92,37 @@ def update_overlay(payload: OverlayStateRequest, conn: sqlite3.Connection = Depe
         set_team_names(conn, payload.team_names)
     if payload.map_plan is not None:
         set_map_plan(conn, payload.map_plan)
+    conn.commit()
+    return snapshot(conn)
+
+
+@router.post("/map-plan/match")
+def set_slot_match(payload: SlotMatchRequest, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """Put a match on one map of the order: fetch it, add it to the live series, and
+    fill in the map's name from the match if the row has none yet."""
+    plan = [dict(slot) for slot in payload.map_plan]
+    if payload.index >= len(plan):
+        raise HTTPException(status_code=400, detail="No such row in the map order.")
+    series_id = _live_series_id(conn, get_state(conn))
+    if series_id is None:
+        raise HTTPException(status_code=400, detail="Create a series first.")
+    match_id = (payload.match_id or "").strip() or None
+    slot = plan[payload.index]
+    if match_id:
+        result = ingest_matches(conn, [match_id])[0]
+        if result["status"] == "error":
+            raise HTTPException(status_code=502, detail=f"Match {match_id}: {result.get('detail') or 'could not be fetched'}")
+        add_matches_to_series(conn, series_id, [match_id])
+        maybe_autoname_teams(conn, series_id)
+        for other in plan:  # one match belongs to one map
+            if other.get("match_id") == match_id:
+                other["match_id"] = None
+        match = load_match(conn, match_id)
+        if not (slot.get("map") or "").strip() and match is not None:
+            slot["map"] = map_display_name(match.map_name) or "Unknown map"
+        if not slot.get("mode") and match is not None and match.game_mode:
+            slot["mode"] = next((m for m in MODE_CHOICES if m.lower() == match.game_mode.lower()), None)
+    slot["match_id"] = match_id
+    set_map_plan(conn, plan)
     conn.commit()
     return snapshot(conn)
