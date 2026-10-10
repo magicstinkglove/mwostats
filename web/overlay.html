@@ -90,6 +90,7 @@
     #side-b .sd-team { color: var(--team-b); }
     .sd-col { font-size: 11px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; text-align: right; }
     .sd-row { height: 42px; }
+    .sidebar.tight .sd-row { height: 34px; }  /* big rosters stay clear of the series leaders box */
     .sd-row + .sd-row { border-top: 1px solid rgba(255,255,255,.07); }
     .sd-name { font-size: 18px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sd-v { font-size: 18px; font-weight: 700; text-align: right; }
@@ -270,6 +271,7 @@
       const box = $(`side-${team.toLowerCase()}`);
       if (!on) { box.classList.remove('on'); continue; }
       const pilots = data.sidebars[team] || [];
+      box.classList.toggle('tight', pilots.length > 8);
       const key = JSON.stringify([data.teams[team].name, pilots]);
       if (previous[`side${team}`] !== key) {
         previous[`side${team}`] = key;
@@ -293,8 +295,7 @@
 
   function renderLeaders(data) {
     const box = $('leaders');
-    // The sidebars already carry everyone's numbers, and the right one sits where this box does.
-    const on = shown.has('leaders') && Boolean(data.leaders && data.leaders.length) && !sidebarsOn(data);
+    const on = shown.has('leaders') && Boolean(data.leaders && data.leaders.length);
     box.classList.toggle('on', on);
     if (!on) return;
     const key = JSON.stringify(data.leaders);
