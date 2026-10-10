@@ -88,7 +88,7 @@
       <span class="brand-mark">▞</span>
       <div>
         <h1>Caster Controls</h1>
-        <p class="sub">Drive the stream overlay. Changes show on stream within 2 seconds.</p>
+        <p class="sub">Drive the stream overlay. Changes show on stream right away.</p>
       </div>
     </div>
     <div class="topbar-right">
@@ -130,7 +130,7 @@
         <button class="ps" data-el="leaders" style="right:1.5%;top:60%">Series leaders</button>
         <button class="ps" id="ps-spot" style="left:3%;top:76%">Player card</button>
       </div>
-      <p class="hint">Flip the switches on the preview to show or hide each part on stream (within 2 seconds). The series leaders box steps aside while the team sidebars are up.</p>
+      <p class="hint">Flip the switches on the preview to show or hide each part on stream; each one eases in and out. The series leaders box steps aside while the team sidebars are up.</p>
 
       <div class="cast-grid" style="margin-top:14px">
         <div class="spot-team" data-team="A"><h3 id="spot-name-a">Team A</h3><div class="spot-list" id="spot-list-a"></div></div>
@@ -207,11 +207,21 @@
     node.textContent = message || '';
   }
 
+  const FRAMES = ['preview-frame', 'inter-frame', 'maps-frame'];
+  // Tell the previews to refetch now rather than on their next poll.
+  function nudgePreviews() {
+    for (const id of FRAMES) {
+      const win = $(id).contentWindow;
+      if (win) win.postMessage('mwo-changed', location.origin);
+    }
+  }
+
   async function update(changes) {
     try {
       snap = await api('/api/overlay', { method: 'PUT', body: JSON.stringify(changes) });
       banner('');
       render();
+      nudgePreviews();
     } catch (err) { banner(err.message); }
   }
 
@@ -450,7 +460,11 @@
     $('maps-frame').src = `/maps${FRESH}`;
     fitPreview();
     await poll();
-    // Rosters and the score move as matches are added in the main app.
+    // Rosters and the score move as matches are added in the main app: the server
+    // pushes a note on every change, which also refreshes the previews.
+    if (window.EventSource) {
+      new EventSource('/api/overlay/events').onmessage = () => { poll(); nudgePreviews(); };
+    }
     setInterval(poll, 4000);
     setInterval(() => loadSeries().then(render).catch(() => {}), 15000);
   })();

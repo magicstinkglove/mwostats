@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import ConfigError, get_settings
 from .db import init_db
+from .live import NotifyOnWrite
 from .metrics import descriptors  # noqa: F401  (import triggers module discovery)
 from .routes import matches, metrics, overlay, players, series, settings as settings_routes
 from .routes.deps import get_conn
@@ -35,6 +36,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(NotifyOnWrite)
 app.include_router(matches.router)
 app.include_router(series.router)
 app.include_router(metrics.router)

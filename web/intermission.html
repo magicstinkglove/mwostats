@@ -54,8 +54,8 @@
 
     /* ---------------------------------------------------- pages */
     main { position: absolute; top: 180px; left: 70px; right: 70px; bottom: 110px; }
-    .page { position: absolute; inset: 0; opacity: 0; transform: translateY(18px); transition: opacity .6s, transform .6s; pointer-events: none; }
-    .page.on { opacity: 1; transform: none; }
+    .page { position: absolute; inset: 0; opacity: 0; transform: translateY(18px); transition: opacity .45s cubic-bezier(.55,0,.8,.2), transform .45s cubic-bezier(.55,0,.8,.2); pointer-events: none; }
+    .page.on { opacity: 1; transform: none; transition: opacity .6s cubic-bezier(.2,.8,.2,1) .15s, transform .7s cubic-bezier(.2,.8,.2,1) .15s; }
     .page-title { font-size: 20px; letter-spacing: 5px; text-transform: uppercase; color: var(--dim); margin: 0 0 18px; }
     .page-title b { color: var(--ink); letter-spacing: 1px; font-size: 30px; text-transform: none; margin-right: 18px; }
 
@@ -353,11 +353,14 @@
 
   let available = [];
 
+  let requestSeq = 0;
   async function poll() {
+    const seq = ++requestSeq;
     try {
       const response = await fetch('/api/overlay/intermission', { cache: 'no-store' });
-      if (!response.ok) return;
+      if (!response.ok || seq !== requestSeq) return;
       data = await response.json();
+      if (seq !== requestSeq) return;
       renderHeader(data);
       available = renderPages(data);
       if (!available.length) {
@@ -383,6 +386,14 @@
     requestAnimationFrame(frame);
   }
 
+  // Refetch the moment anything changes: the server pushes a note on every write.
+  // Inside the caster's previews the caster page relays it instead, so the previews
+  // don't each hold a connection open. The interval below stays as the fallback.
+  if (window.parent !== window) {
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data === 'mwo-changed') poll(); });
+  } else if (window.EventSource) {
+    new EventSource('/api/overlay/events').onmessage = () => poll();
+  }
   poll();
   setInterval(poll, 3000);
   requestAnimationFrame(frame);

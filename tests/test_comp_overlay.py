@@ -222,3 +222,40 @@ def test_overlay_elements_switch_on_and_off(client):  # noqa: F811
     state = client.put("/api/overlay", json={"sidebars": True}).json()["state"]
     assert state["elements"]["leaders"] is False and state["sidebars"] is True
     assert client.put("/api/overlay", json={"elements": {"bogus": True}}).status_code == 400
+
+
+def test_writes_bump_the_live_counter_and_reads_do_not(client):  # noqa: F811
+    from app import live
+
+    before = live.version()
+    client.get("/api/overlay")
+    assert live.version() == before
+    client.put("/api/overlay", json={"sidebars": True})
+    assert live.version() == before + 1
+    client.put("/api/overlay", json={"intermission_page": "nope"})  # rejected: no change
+    assert live.version() == before + 1
+
+
+def test_change_stream_sends_one_event_per_change():
+    import asyncio
+
+    from app import live
+
+    async def run():
+        async def connected():
+            return False
+
+        stream = live.changes(connected, lifetime=0.3, interval=0.01)
+        assert await stream.__anext__() == "retry: 100\n\n"
+        live.bump()
+        v = live.version()
+        assert await stream.__anext__() == f"id: {v}\ndata: {v}\n\n"
+        assert [chunk async for chunk in stream] == []  # nothing else changes, so it just ends
+
+        # Reconnecting after missing a change gets it straight away; up to date gets nothing.
+        missed = live.changes(connected, last_seen=str(v - 1), lifetime=0.05, interval=0.01)
+        assert [chunk async for chunk in missed][1:] == [f"id: {v}\ndata: {v}\n\n"]
+        current = live.changes(connected, last_seen=str(v), lifetime=0.05, interval=0.01)
+        assert [chunk async for chunk in current][1:] == []
+
+    asyncio.run(run())

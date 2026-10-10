@@ -79,11 +79,10 @@
     .sidebar {
       position: absolute; top: 170px; width: 330px; background: var(--plate);
       filter: drop-shadow(0 4px 14px rgba(0,0,0,.45));
-      opacity: 0; transition: transform .55s cubic-bezier(.2,.8,.2,1), opacity .35s;
     }
     #side-a { left: 0; border-left: 6px solid var(--team-a); transform: translateX(-110%); }
     #side-b { right: 0; border-right: 6px solid var(--team-b); transform: translateX(110%); }
-    #side-a.on, #side-b.on { transform: translateX(0); opacity: 1; }
+    #side-a.on, #side-b.on { transform: translateX(0); }
     .sd-head, .sd-row { display: grid; grid-template-columns: 1fr 62px 40px 58px; align-items: center; gap: 6px; padding: 0 14px; }
     .sd-head { padding-top: 9px; padding-bottom: 9px; background: var(--plate-2); }
     .sd-team { font-size: 19px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -99,9 +98,9 @@
     #spotlight {
       position: absolute; left: 60px; bottom: 70px; display: flex; align-items: stretch;
       filter: drop-shadow(0 6px 18px rgba(0,0,0,.5));
-      transform: translateX(-120%); opacity: 0; transition: transform .55s cubic-bezier(.2,.8,.2,1), opacity .35s;
+      transform: translateX(-120%);
     }
-    #spotlight.on { transform: translateX(0); opacity: 1; }
+    #spotlight.on { transform: translateX(0); }
     .sp-bar { width: 10px; background: var(--c); }
     .sp-main { background: var(--plate); padding: 12px 26px 12px 20px; min-width: 420px; }
     .sp-team { font-size: 16px; letter-spacing: 1.5px; color: var(--c); font-weight: 700; }
@@ -112,11 +111,32 @@
     .sp-stat + .sp-stat { border-left: 1px solid rgba(255,255,255,.08); }
     .sp-stat .v { font-size: 34px; font-weight: 800; }
     .sp-stat .l { font-size: 12px; color: var(--dim); letter-spacing: 1.5px; text-transform: uppercase; }
+    /* ---------------------------------------------------- transitions
+       Everything eases in (fast start, soft landing) and eases out (slow start, quick exit).
+       Hidden elements stay in the layout, just invisible, so they can animate both ways. */
+    :root { --enter: cubic-bezier(.2,.8,.2,1); --exit: cubic-bezier(.55,0,.8,.2); }
+    .fx, .sidebar, #spotlight {
+      opacity: 0; visibility: hidden;
+      transition: opacity .3s var(--exit), transform .4s var(--exit), visibility 0s .4s;
+    }
+    .fx.on, .sidebar.on, #spotlight.on {
+      opacity: 1; visibility: visible;
+      transition: opacity .45s var(--enter), transform .6s var(--enter), visibility 0s;
+    }
+    #score.fx { transform: translate(-50%, -130%); }
+    #score.fx.on { transform: translate(-50%, 0); }
+    #last.fx { transform: translate(-50%, -24px); }
+    #last.fx.on { transform: translate(-50%, 0); }
+    #leaders.fx { transform: translateX(120%); }
+    #leaders.fx.on { transform: none; }
+    /* New content (a fresh last match, a different pilot, updated leaders) rises in, one piece after another. */
+    @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    #last > *, .ld-row, .sd-row, .sp-stat { animation: rise .5s var(--enter) both; animation-delay: calc(var(--i, 0) * 45ms); }
   </style>
 </head>
 <body>
 
-<div id="score" hidden>
+<div id="score" class="fx">
   <div class="sb-name a" id="sb-name-a"></div>
   <div class="sb-wins a num" id="sb-wins-a">0</div>
   <div class="sb-mid"><span class="label" id="sb-mid-label">Match</span><span class="value num" id="sb-mid-value">—</span></div>
@@ -124,9 +144,9 @@
   <div class="sb-name b" id="sb-name-b"></div>
 </div>
 
-<div id="last" hidden></div>
+<div id="last" class="fx"></div>
 
-<div id="leaders" hidden>
+<div id="leaders" class="fx">
   <h3>Series leaders</h3>
   <div id="leaders-rows"></div>
 </div>
@@ -195,8 +215,9 @@
   }
 
   function renderScore(data) {
-    $('score').hidden = !shown.has('score') || !data.series;
-    if ($('score').hidden) return;
+    const on = shown.has('score') && Boolean(data.series);
+    $('score').classList.toggle('on', on);
+    if (!on) return;
     setText('sb-name-a', data.teams.A.name);
     setText('sb-name-b', data.teams.B.name);
     setText('sb-wins-a', data.teams.A.wins);
@@ -209,8 +230,9 @@
   function renderLast(data) {
     const last = data.last_match;
     const box = $('last');
-    box.hidden = !shown.has('last') || !last;
-    if (box.hidden) return;
+    const on = shown.has('last') && Boolean(last);
+    box.classList.toggle('on', on);
+    if (!on) return;
     const key = JSON.stringify(last);
     if (previous.last === key) return;
     previous.last = key;
@@ -236,6 +258,7 @@
       mvp.append(document.createTextNode(`  ${line}`));
       parts.push(mvp);
     }
+    parts.forEach((p, i) => p.style.setProperty('--i', i));
     box.replaceChildren(...parts);
   }
 
@@ -254,8 +277,9 @@
         const head = node('div', 'sd-head');
         head.append(node('span', 'sd-team', data.teams[team].name), node('span', 'sd-col', 'Avg Dmg'),
           node('span', 'sd-col', 'K'), node('span', 'sd-col', showSurv ? 'Surv' : ''));
-        const rows = pilots.map((p) => {
+        const rows = pilots.map((p, i) => {
           const row = node('div', 'sd-row');
+          row.style.setProperty('--i', i);
           row.append(node('span', 'sd-name', p.username), node('span', 'sd-v num', p.avg_damage.toLocaleString()),
             node('span', 'sd-v num', p.kills),
             node('span', 'sd-v num', p.survival_rate === null ? '' : `${Math.round(p.survival_rate * 100)}%`));
@@ -270,10 +294,15 @@
   function renderLeaders(data) {
     const box = $('leaders');
     // The sidebars already carry everyone's numbers, and the right one sits where this box does.
-    box.hidden = !shown.has('leaders') || !data.leaders || !data.leaders.length || sidebarsOn(data);
-    if (box.hidden) return;
-    $('leaders-rows').replaceChildren(...data.leaders.map((l) => {
+    const on = shown.has('leaders') && Boolean(data.leaders && data.leaders.length) && !sidebarsOn(data);
+    box.classList.toggle('on', on);
+    if (!on) return;
+    const key = JSON.stringify(data.leaders);
+    if (previous.leaders === key) return;
+    previous.leaders = key;
+    $('leaders-rows').replaceChildren(...data.leaders.map((l, i) => {
       const row = node('div', 'ld-row');
+      row.style.setProperty('--i', i);
       row.style.setProperty('--c', color(l.team));
       row.append(node('span', 'ld-label', l.label), node('span', 'ld-name', l.username), node('span', 'ld-value num', l.value));
       return row;
@@ -299,8 +328,9 @@
         sp.survival_rate !== null ? ['Survival', `${Math.round(sp.survival_rate * 100)}%`] : null,
         ['Drops', sp.matches],
       ].filter(Boolean);
-      $('sp-stats').replaceChildren(...stats.map(([label, value]) => {
+      $('sp-stats').replaceChildren(...stats.map(([label, value], i) => {
         const s = node('div', 'sp-stat');
+        s.style.setProperty('--i', i + 2);
         s.append(node('span', 'v num', value), node('span', 'l', label));
         return s;
       }));
@@ -308,11 +338,14 @@
     box.classList.add('on');
   }
 
+  let requestSeq = 0;
   async function tick() {
+    const seq = ++requestSeq;
     try {
       const response = await fetch('/api/overlay', { cache: 'no-store' });
-      if (!response.ok) return;
+      if (!response.ok || seq !== requestSeq) return;
       const data = await response.json();
+      if (seq !== requestSeq) return;
       current = data;
       // Each element renders on its own, so one failing never blanks the rest.
       for (const render of [renderScore, renderLast, renderLeaders, renderSidebars, renderSpotlight]) {
@@ -326,6 +359,14 @@
     }
   }
 
+  // Refetch the moment anything changes: the server pushes a note on every write.
+  // Inside the caster's previews the caster page relays it instead, so the previews
+  // don't each hold a connection open. The interval below stays as the fallback.
+  if (window.parent !== window) {
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data === 'mwo-changed') tick(); });
+  } else if (window.EventSource) {
+    new EventSource('/api/overlay/events').onmessage = () => tick();
+  }
   tick();
   setInterval(tick, 2000);
 })();

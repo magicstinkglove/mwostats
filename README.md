@@ -154,7 +154,7 @@ with switches sitting right on the preview next to the part they control.
   preview (pick or type each map and mode, drag to reorder); each match you add ticks off the
   next map with its winner and score, and the next one is highlighted.
 
-All three update by themselves as you add matches. The caster page can also set team names for the
+All three update the moment anything changes (a switch flipped, a match added), and elements ease in and out. The caster page can also set team names for the
 stream only (say, "Emperors" instead of "[EmP] Emperors") without changing them in the stats.
 
 ---
@@ -361,12 +361,13 @@ app/
   teams.py         co-occurrence inference          <- the core logic
   service.py       ingest, context assembly, token resolution, Jarl's List caching
   overlay.py       broadcast overlay snapshot and caster state
+  live.py          change notifications that push updates to the stream pages
   intermission.py  full-screen between-games breakdown
   metrics/         auto-discovered metric modules
   routes/          matches, series, metrics, settings, players
 web/               index.html + app.js + modules.js + style.css, overlay.html, intermission.html, maps.html, caster.html (no build step)
 scripts/           probe_schema.py, seed_demo.py
-tests/             134 tests
+tests/             136 tests
 ```
 
 ### Caching
@@ -393,6 +394,7 @@ GET    /api/series/{id}/metrics/{module_id}    ?team=A|B for that team's own pag
 GET    /api/series/{id}/players/{username}
 GET    /api/players/{username}/jarls           career stats from The Jarl's List, cached 12h
 GET    /api/overlay                            overlay snapshot (live series, score, MVP, leaders, spotlight)
+GET    /api/overlay/events                     server-sent events: a message whenever anything on stream may have changed
 GET    /api/overlay/intermission               full between-games breakdown for the live series
 PUT    /api/overlay                            {series_id?, spotlight?, team_names?, sidebars?, elements?, intermission_page?, map_plan?}; null series = newest
 GET    /api/settings/token                     {configured, source: env|database|none, masked}
@@ -409,7 +411,7 @@ Interactive docs at `http://localhost:8000/docs`.
 python -m pytest -q
 ```
 
-134 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
+136 tests: inference (clean swaps, rotating subs, pinned overrides, contested players,
 disjoint groups), clan-tag auto-naming, normalization of partial/malformed payloads, metric
 values on summary and team-scoped views, the HTTP layer with the network mocked, token
 resolution/masking, Jarl's List caching (incl. the per-request-commit regression test), and a

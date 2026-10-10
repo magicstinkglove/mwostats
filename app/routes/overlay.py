@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from .. import live
 from ..db import get_series
 from ..intermission import PAGES, intermission
 from ..overlay import ELEMENTS, MAX_PLANNED_MAPS, get_state, set_map_plan, set_state, set_team_names, snapshot
@@ -35,6 +37,13 @@ class OverlayStateRequest(BaseModel):
 @router.get("")
 def overlay(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     return snapshot(conn)
+
+
+@router.get("/events")
+async def overlay_events(request: Request) -> StreamingResponse:
+    """Server-sent events: a message each time anything on stream may have changed."""
+    stream = live.changes(request.is_disconnected, request.headers.get("last-event-id"))
+    return StreamingResponse(stream, media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/intermission")
